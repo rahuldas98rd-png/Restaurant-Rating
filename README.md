@@ -263,25 +263,6 @@ XGBoost was selected for its ability to handle the mix of target-encoded categor
 
 ---
 
-## ⚙️ Setup & Usage
-
-```bash
-# Clone the repository
-git clone https://github.com/<your-username>/restaurant-rating-analysis.git
-cd restaurant-rating-analysis
-
-# Install dependencies
-pip install pandas numpy matplotlib seaborn scikit-learn xgboost plotly jupyter
-
-# Launch notebooks
-jupyter notebook Notebooks/EDA/
-```
-
-> **Run notebooks in order: `01 → 02 → 03 → 04`**
-> Notebooks 02–04 load from `Notebooks/processed_data/Dataset_filtered.csv` which is produced by Notebook 01.
-
----
-
 ## 💡 Key Takeaways
 
 - **Price range is the strongest predictor** of restaurant rating (r = 0.44) — a clear, monotonic relationship exists where each tier up corresponds to a meaningfully higher average rating.
@@ -292,5 +273,42 @@ jupyter notebook Notebooks/EDA/
 - **XGBoost** with a disciplined feature engineering pipeline substantially outperformed all linear models, reflecting the non-linear, interaction-heavy nature of the rating prediction problem.
 
 ---
+## ⚙️ Setup & Usage
 
-*Built as a portfolio data science project | April 2026*
+# Initialize your credentials in .env file
+-> kindly refer ***.env.example***
+
+# Launch notebooks
+jupyter notebook Notebooks/EDA/
+> **Run notebooks in order: `01 → 02 → 03 → 04`**
+> Notebooks 02–04 load from `Notebooks/processed_data/Dataset_filtered.csv` which is produced by Notebook 01.
+
+```bash
+# Create Conda Environment (recommended)
+conda create -p venv python==3.12 -y  # virtual environment creation with python version 3.12
+conda activate .\venv                 # activate conda environment
+conda deactivate                      # to deactivate conda environment
+# OR
+# Create python environment
+python -m venv venv                   # virtual environment creation with default python version installed in the system
+venv\Scripts\activate                 # activate python environment
+deactivate                            # to deactivate python environment
+
+# Install dependencies
+pip install -r requirements.txt
+
+# To check database connection
+python scripts/test_mongodb_connection.py
+
+# To push Data into MongoDB
+python scripts/push_data.py
+
+# To train model
+python scripts/run_training.py
+
+# To run inference
+python scripts/run_inference.py
+
+# To run app
+streamlit run app.py
+---
