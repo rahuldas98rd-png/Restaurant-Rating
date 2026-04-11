@@ -86,7 +86,7 @@ def generate_tree(
 
 if __name__ == "__main__":
     ROOT = "."
-    MAX_DEPTH = 2
+    MAX_DEPTH = 1
 
     patterns = ignore_pattern()
 

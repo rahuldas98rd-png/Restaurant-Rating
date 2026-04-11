@@ -14,21 +14,40 @@ This project analyses **9,551 restaurants** across **15 countries** and **141 ci
 
 ```
 proj/
-├── Restaurant_Data/
-│   └── Dataset.csv                        # Raw Zomato restaurant dataset
-├── Notebooks/
-│   ├── processed_data/
-│   │   └── Dataset_filtered.csv           # Cleaned dataset used across notebooks
-│   ├── EDA/
-│   │   ├── 01_EDA.ipynb                   # Data exploration & preprocessing
-│   │   ├── 02_EDA.ipynb                   # Table booking, online delivery & price analysis
-│   │   ├── 03_EDA.ipynb                   # Customer preference & cuisine analysis
-│   │   ├── 04_regression_analysis.ipynb   # Feature engineering & model training
-│   │   ├── rating_dashboard.py            # Interactive rating dashboard
-│   │   └── utils/
-│   │       └── rating_histogram.py        # Reusable plotting utility
-│   └── reports/                           # Exported visualisation charts
-└── README.md
+├── batch_prediction_data
+│   └── batch_input.csv
+├── data-schema
+│   └── schema.yaml
+├── Notebooks
+│   ├── EDA
+│   ├── processed_data
+│   ├── reports
+│   └── __init__.py
+├── Restaurant_Data
+│   ├── Dataset.csv
+│   └── README.md
+├── scripts
+│   ├── push_data.py
+│   ├── run_inference.py
+│   ├── run_training.py
+│   └── test_mongodb_connection.py
+├── src
+│   ├── cloud
+│   ├── components
+│   ├── constants
+│   ├── entity
+│   ├── exception
+│   ├── logging
+│   ├── pipeline
+│   ├── utils
+│   └── __init__.py
+├── .env.example
+├── .gitignore
+├── app.py
+├── README.md
+├── requirements.txt
+├── setup.py
+└── tree_generator.py
 ```
 
 ---
