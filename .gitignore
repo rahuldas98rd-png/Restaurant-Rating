@@ -1,0 +1,21 @@
+venv/
+.env
+__pycache__/
+logs/
+Artifacts/
+mlruns/
+mlflow.db
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+*.egg-info/
+
+final_model/
