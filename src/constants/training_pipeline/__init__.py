@@ -38,30 +38,37 @@ DATA_INGESTION_TRAIN_TEST_SPLIT_RATIO: float = 0.2
 DATA_INGESTION_RANDOM_SEED : int = 42
 
 
-# """
-# Data Transformation related constant start with DATA_TRANSFORMATION VAR NAME
-# """
-# DATA_TRANSFORMATION_DIR_NAME: str = "data_transformation"
-# DATA_TRANSFORMATION_TRANSFORMED_DATA_DIR: str = "transformed"
-# DATA_TRANSFORMATION_TRANSFORMED_OBJECT_DIR: str = "transformed_object"
-# PREPROCESSING_OBJECT_FILE_NAME = "preprocessing.pkl"
+"""
+Data Transformation related constant start with DATA_TRANSFORMATION VAR NAME
+"""
+DATA_TRANSFORMATION_DIR_NAME: str = "data_transformation"
+DATA_TRANSFORMATION_TRANSFORMED_DATA_DIR: str = "transformed"
+DATA_TRANSFORMATION_TRANSFORMED_OBJECT_DIR: str = "transformed_object"
+PREPROCESSING_OBJECT_FILE_NAME = "preprocessing.pkl"
+MISSING_VALUE_THRESHOLD: float = 0.1
+ROBUST_SCALER_PARAMS: dict = {
+    'with_centering':True,          # subtract median
+    'with_scaling':True,            # scale by IQR
+    'quantile_range':(25.0, 75.0),  # standard IQR
+    'unit_variance':False           # keep IQR-based scaling (not variance=1)
+}
 
-# ## KNN-imputer to replace nan values
-# DATA_TRANSFORMATION_IMPUTER_PARAMS: dict = {
-#     "missing_values": np.nan,
-#     "n_neighbors": 3,
-#     "weights": "uniform",
-# }
 
+"""
+Data Validation related constant start with DATA_VALIDATION VAR NAME
+"""
+DATA_VALIDATION_DIR_NAME: str = "data_validation"
 
-# """
-# Data Validation related constant start with DATA_VALIDATION VAR NAME
-# """
-# DATA_VALIDATION_DIR_NAME: str = "data_validation"
-# DATA_VALIDATION_VALID_DIR: str = "validated"
-# DATA_VALIDATION_INVALID_DIR: str = "invalid"
-# DATA_VALIDATION_DRIFT_REPORT_DIR: str = "drift_report"
-# DATA_VALIDATION_DRIFT_REPORT_FILE_NAME: str = "report.yaml"
-# DATA_VALIDATION_DRIFT_THRESHOLD: float = 0.05
-# DATA_VALIDATION_TRAIN_FILE_PATH: str = "train.npy"
-# DATA_VALIDATION_TEST_FILE_PATH: str = "test.npy"
+PRIMARY_DATA_VALIDATION_VALID_DIR: str = "primary_validated"
+PRIMARY_DATA_VALIDATION_INVALID_DIR: str = "primary_invalid"
+PRIMARY_DATA_VALIDATION_TRAIN_FILE_PATH: str = "train.csv"
+PRIMARY_DATA_VALIDATION_TEST_FILE_PATH: str = "test.csv"
+DATA_VALIDATION_DRIFT_REPORT_DIR: str = "drift_report"
+DATA_VALIDATION_DRIFT_REPORT_FILE_NAME: str = "report.yaml"
+
+DATA_VALIDATION_DRIFT_THRESHOLD: float = 0.05
+
+FINAL_DATA_VALIDATION_VALID_DIR: str = "primary_validated"
+FINAL_DATA_VALIDATION_INVALID_DIR: str = "primary_invalid"
+FINAL_DATA_VALIDATION_TRAIN_FILE_PATH: str = "train.npy"
+FINAL_DATA_VALIDATION_TEST_FILE_PATH: str = "test.npy"

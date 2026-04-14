@@ -13,7 +13,8 @@ from src.logging.logger import get_logger
 
 from src.entity.config_entity import DataIngestionConfig
 from src.entity.artifact_entity import DataIngestionArtifact
-from src.utils.main_utils.utils import save_csv
+from src.utils.main_utils.utils import save_csv, read_yaml_file
+from src.constants.training_pipeline import SCHEMA_FILE_PATH
 
 load_dotenv()
 mongodb_url = os.getenv("MONGO_DB_URL")
@@ -27,6 +28,7 @@ class DataIngestion:
     def __init__(self, data_ingestion_config:DataIngestionConfig):
         try:
             self.data_ingestion_config = data_ingestion_config
+            self._schema_config = read_yaml_file(SCHEMA_FILE_PATH)
         except Exception as e:
             raise CustomException(e, sys) from e
         
@@ -81,10 +83,22 @@ class DataIngestion:
         try:
             test_size = self.data_ingestion_config.train_test_split_ratio
             random = self.data_ingestion_config.random_seed
-            logging.info("Initiate train test split on the dataframe with test_size: {} and random state: {}".format(test_size, random))
+
+            target_column = self._schema_config['data']['target_column']
+            labels = self._schema_config['data']['rating_labels']
+
+            rating_bucket = pd.cut(
+                dataframe[target_column],
+                bins=[-float("inf"), 2.5, 3.5, 4.0, float("inf")],
+                labels=labels
+            )
+
+            logging.info("Initiate train test split on the dataframe with"\
+                        "test_size: {} and random state: {}".format(test_size, random))
             train_set, test_set = train_test_split(dataframe,
                                                    test_size=test_size,
-                                                   random_state=random)
+                                                   random_state=random,
+                                                   stratify=rating_bucket)
             logging.info("Train test split successful")
             dir_path = os.path.dirname(self.data_ingestion_config.training_file_path)
             os.makedirs(dir_path, exist_ok=True)

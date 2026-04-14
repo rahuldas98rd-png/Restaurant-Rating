@@ -19,3 +19,5 @@ mlflow.db
 *.egg-info/
 
 final_model/
+
+my_test.py

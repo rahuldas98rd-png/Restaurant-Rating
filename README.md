@@ -294,17 +294,11 @@ XGBoost was selected for its ability to handle the mix of target-encoded categor
 ---
 ## ⚙️ Setup & Usage
 
-# Initialize your credentials in .env file
--> kindly refer ***.env.example***
-
-# Launch notebooks
-jupyter notebook Notebooks/EDA/
-> **Run notebooks in order: `01 → 02 → 03 → 04`**
-> Notebooks 02–04 load from `Notebooks/processed_data/Dataset_filtered.csv` which is produced by Notebook 01.
-
 ```bash
+# Initialize your credentials in .env file -> kindly refer *.env.example**
+
 # Create Conda Environment (recommended)
-conda create -p venv python==3.12 -y  # virtual environment creation with python version 3.12
+conda create -p venv python==3.13 -y  # virtual environment creation with python version 3.12
 conda activate .\venv                 # activate conda environment
 conda deactivate                      # to deactivate conda environment
 # OR
@@ -315,7 +309,19 @@ deactivate                            # to deactivate python environment
 
 # Install dependencies
 pip install -r requirements.txt
+```
 
+# Launch notebooks
+jupyter notebook Notebooks/EDA/
+> **Go through notebooks in order: `01 → 02 → 03 → 04`**
+> Notebooks 02–04 loaded from `Notebooks/processed_data/Dataset_filtered.csv` which is produced by Notebook 01.
+
+```bash
+# To get a dashboard overview of the dataset run:
+streamlit run Notebooks/EDA/rating_dashboard.py
+```
+
+```bash
 # To check database connection
 python scripts/test_mongodb_connection.py
 
@@ -330,4 +336,6 @@ python scripts/run_inference.py
 
 # To run app
 streamlit run app.py
+```
+
 ---

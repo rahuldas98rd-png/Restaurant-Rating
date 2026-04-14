@@ -20,6 +20,14 @@ def save_csv(file_path: str, dataframe: pd.DataFrame, replace: bool = False) -> 
         dataframe.to_csv(file_path, index=False, header=True)
     except Exception as e:
         raise CustomException(e, sys) from e
+    
+
+def read_csv(file_path: str) -> pd.DataFrame:
+    try:
+        logging.info(f"Reading *.csv file from {file_path}")
+        return pd.read_csv(file_path)
+    except Exception as e:
+        raise CustomException(e, sys) from e
 
 
 def read_yaml_file(file_path: str) -> dict:

@@ -1,0 +1,85 @@
+data:
+  columns:
+    - Restaurant ID: int64
+    - Restaurant Name: object
+    - Country Code: int64
+    - City: object
+    - Address: object
+    - Locality: object
+    - Locality Verbose: object
+    - Longitude: float64
+    - Latitude: float64
+    - Cuisines: object
+    - Average Cost for two: int64
+    - Currency: object
+    - Has Table booking: object
+    - Has Online delivery: object
+    - Is delivering now: object
+    - Switch to order menu: object
+    - Price range: int64
+    - Aggregate rating: float64
+    - Rating color: object
+    - Rating text: object
+    - Votes: int64
+  target_column: Aggregate rating
+  rating_labels:
+    - low
+    - average
+    - good
+    - excellent
+  id_columns:
+    - Restaurant ID
+    - Restaurant Name
+  categorical_columns:
+    - Restaurant Name
+    - City
+    - Address
+    - Locality
+    - Locality Verbose
+    - Cuisines
+    - Currency
+    - Has Table booking
+    - Has Online delivery
+    - Is delivering now
+    - Switch to order menu
+    - Rating color
+    - Rating text
+  numerical_columns:
+    - Restaurant ID
+    - Country Code
+    - Longitude
+    - Latitude
+    - Average Cost for two
+    - Price range
+    - Votes
+    - Aggregate rating
+
+
+drop_columns:
+  - Rating color       
+  - Rating text
+  - Locality        
+  - Locality Verbose  
+  - Address
+  - Longitude
+  - Latitude
+  - Restaurant Name
+  - Switch to order menu
+  - Cuisines
+  - Restaurant ID
+
+binary_columns:
+  - Has Table booking
+  - Has Online delivery
+  - Is delivering now
+
+target_encoding_columns:
+  - City
+  - Currency
+  - Country Code
+
+transformation_columns:
+  - Average Cost for two
+  - Votes
+
+
