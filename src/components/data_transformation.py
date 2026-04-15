@@ -167,20 +167,11 @@ class DataTransformation:
                 # Missing value handling
                 logging.info(f"{'='*15}Missing values in train dataset before{'='*15}")
                 logging.info(train_df.isnull().sum())
-                train_df = self.handle_missing_values(datframe=train_df)
+                X_train = self.handle_missing_values(datframe=train_df)
                 logging.info(f"{'='*15}Missing values in train dataset after{'='*15}")
                 logging.info(train_df.isnull().sum())
-                test_df = self.handle_missing_values(datframe=test_df)
+                X_test = self.handle_missing_values(datframe=test_df)
                 logging.info("Missing values handled from test dataset")
-
-                logging.info(f"Drop {target_column} from Train Dataset")
-                X_train = train_df.drop(labels=target_column, axis=1)
-                logging.info(X_train.head())
-                y_train = train_df[target_column]
-
-                logging.info(f"Drop {target_column} from Test Dataset")
-                X_test = test_df.drop(labels=target_column, axis=1)
-                y_test = test_df[target_column]
 
                 # Binary Encoding
                 logging.info("Perform binary encoding")
@@ -226,21 +217,17 @@ class DataTransformation:
                 logging.info(X_train.head())
                 logging.info("Applying transform on Test Dataset")
                 X_test = preprocessor.transform(X_test)
+                save_object(file_path="final_model/preprocessor.pkl", obj=preprocessor)
                 
                 logging.info(f"Rename columns {X_train.columns}")
                 X_train = self.rename_columns(dataframe=X_train)
                 logging.info(X_train.head())
                 X_test = self.rename_columns(dataframe=X_test)
                 
-                logging.info(f"Concat X and y")
-                transformed_train_df = pd.concat([X_train,y_train], axis=1)
-                logging.info(X_train.head())
-                transformed_test_df = pd.concat([X_test, y_test], axis=1)
-                
                 save_csv(file_path=self.data_transformation_config.transformed_train_file_path,
-                         dataframe=transformed_train_df)
+                         dataframe=X_train)
                 save_csv(file_path=self.data_transformation_config.transformed_test_file_path,
-                         dataframe=transformed_test_df)
+                         dataframe=X_test)
                 save_object(file_path=self.data_transformation_config.transformed_object_file_path,
                             obj=preprocessor)
                 

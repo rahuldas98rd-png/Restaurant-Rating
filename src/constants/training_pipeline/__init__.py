@@ -63,12 +63,27 @@ PRIMARY_DATA_VALIDATION_VALID_DIR: str = "primary_validated"
 PRIMARY_DATA_VALIDATION_INVALID_DIR: str = "primary_invalid"
 PRIMARY_DATA_VALIDATION_TRAIN_FILE_PATH: str = "train.csv"
 PRIMARY_DATA_VALIDATION_TEST_FILE_PATH: str = "test.csv"
+
 DATA_VALIDATION_DRIFT_REPORT_DIR: str = "drift_report"
 DATA_VALIDATION_DRIFT_REPORT_FILE_NAME: str = "report.yaml"
-
 DATA_VALIDATION_DRIFT_THRESHOLD: float = 0.05
+BASE_DATA_DIR: str = "historical_data"
+BASE_DATA_FILE_PATH: str = "base_df.csv"
 
-FINAL_DATA_VALIDATION_VALID_DIR: str = "primary_validated"
-FINAL_DATA_VALIDATION_INVALID_DIR: str = "primary_invalid"
+
+FINAL_DATA_VALIDATION_VALID_DIR: str = "final_validated"
+FINAL_DATA_VALIDATION_INVALID_DIR: str = "final_invalid"
 FINAL_DATA_VALIDATION_TRAIN_FILE_PATH: str = "train.npy"
 FINAL_DATA_VALIDATION_TEST_FILE_PATH: str = "test.npy"
+
+
+"""
+Model Trainer ralated constant start with MODE_TRAINER VAR NAME
+"""
+MODEL_TRAINER_DIR_NAME: str = "model_trainer"
+MODEL_TRAINER_TRAINED_MODEL_DIR: str = "trained_model"
+MODEL_TRAINER_TRAINED_MODEL_NAME: str = "best_model.pkl"
+MODEL_TRAINER_EVALUATION_DIR: str = "model_evaluation"
+MODEL_TRAINER_EVALUATION_REPORT: str = 'all_model_performance_report.yaml'
+MODEL_TRAINER_EXPECTED_SCORE: float = 0.6
+MODEL_TRAINER_OVER_FIITING_UNDER_FITTING_THRESHOLD: float = 0.05

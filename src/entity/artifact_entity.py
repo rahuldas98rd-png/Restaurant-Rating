@@ -34,11 +34,9 @@ class FinalDataValidationArtifact:
 
 @dataclass
 class RegressionMetricArtifact:
-    f1_score: float
-    precision_score: float
-    recall_score: float
-    accuracy_score: float
-    roc_auc_score: float
+    mean_absolute_error: float
+    root_mean_squared_error: float
+    r2_score: float
 
 
 @dataclass

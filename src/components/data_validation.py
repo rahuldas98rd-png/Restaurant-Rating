@@ -6,10 +6,17 @@ import numpy as np
 import os, sys
 from typing import List, Dict
 from collections import Counter
-from src.utils.main_utils.utils import read_yaml_file, write_yaml_file, read_csv, save_csv
+from src.utils.main_utils.utils import (read_yaml_file, write_yaml_file, 
+                                        read_csv, save_csv,
+                                        save_numpy_array_data)
 
-from src.entity.artifact_entity import DataIngestionArtifact,PrimaryDataValidationArtifact
-from src.entity.config_entity import PrimaryDataValidationConfig,DriftValidationConfig
+from src.entity.artifact_entity import (DataIngestionArtifact,
+                                        PrimaryDataValidationArtifact,
+                                        FinalDataValidationArtifact,
+                                        DataTransformationArtifact)
+from src.entity.config_entity import (PrimaryDataValidationConfig,
+                                      DriftValidationConfig,
+                                      FinalDataValidationConfig)
 from src.constants.training_pipeline import SCHEMA_FILE_PATH, DATA_VALIDATION_DRIFT_THRESHOLD
 
 logging = get_logger(__name__)
@@ -151,17 +158,23 @@ class PrimaryDataValidation:
 
 
 class DriftValidation:
-    def __init__(self, drift_validation_config:DriftValidationConfig):
+    def __init__(self, drift_validation_config:DriftValidationConfig,
+                 data_transformation_artifact:DataTransformationArtifact):
         try:
+            self.data_transformation_artifact=data_transformation_artifact
             self.drift_validation_config=drift_validation_config
             self.threshold=DATA_VALIDATION_DRIFT_THRESHOLD
         except Exception as e:
             raise CustomException(e, sys) from e
         
-    def detect_dataset_drift(self, base_df:pd.DataFrame, current_df:pd.DataFrame) -> bool:
+    def drift_status(self, base_df:pd.DataFrame, current_df:pd.DataFrame) -> bool:
         try:
+            # Assume data is HEALTHY (no drift) at the start
             status: bool = True # Variable to check overall drift status for the whole dataframe
+
+            # Whether drift is found in THIS column
             is_found: bool # Variable to map drift status of each numerical column
+            
             report: Dict = {} # To store the drift report
             
             for column in base_df.columns:
@@ -193,32 +206,107 @@ class DriftValidation:
             os.makedirs(dir_path, exist_ok=True)
             write_yaml_file(file_path=drift_report_file_path, content=report)
             logging.info(f"Data drift validation: {status}")
-
             return status
-        
-        # Validate data drift only for training dataset
-        # num_train_df = train_df[self._schema_config['data']['numerical_columns']]
-        # num_test_df = test_df[self._schema_config['data']['numerical_columns']]
-        # drift_status = self.detect_dataset_drift(base_df=num_train_df, current_df=num_test_df)
-        # overall_status.append(drift_status)
-
+        except Exception as e:
+            raise CustomException(e, sys) from e
+    
+    def check_data_drift(self)->bool:
+        try:
+            base_df = read_csv(self.drift_validation_config.base_data_file_path)
+            current_df = read_csv(self.data_transformation_artifact.transformed_train_file_path)
+            status = self.drift_status(base_df=base_df, current_df=current_df)
+            return status
         except Exception as e:
             raise CustomException(e, sys) from e
     
 
 
 class FinalDataValidation:
-    def __init__(self):
+    def __init__(self,data_transformation_artifact:DataTransformationArtifact,
+                 data_validation_config:FinalDataValidationConfig):
         try:
-            pass
+            self.data_transformation_artifact=data_transformation_artifact
+            self.data_validation_config=data_validation_config
+            self._schema_config = read_yaml_file(SCHEMA_FILE_PATH)
         except Exception as e:
             raise CustomException(e, sys) from e
         
-    def initiate_final_data_validation(self) -> PrimaryDataValidationArtifact:
+    def column_check(self, dataframe:pd.DataFrame)->bool:
+        try:
+            final_schema_columns = self._schema_config['final_columns']
+            if len(dataframe.columns) == len(final_schema_columns):
+                if Counter(dataframe.columns) == Counter(final_schema_columns):
+                    return True
+                else:
+                    logging.info(f"Require columns: {final_schema_columns}"\
+                                 f"Dataframe columns: {dataframe.columns}")
+                    return False
+            else:
+                logging.info(f"Required no. of columns: {len(final_schema_columns)}"\
+                             f"Loaded no. of columns: {len(dataframe.columns)}")
+                return False
+            
+        except Exception as e:
+            raise CustomException(e, sys) from e
+        
+    def initiate_final_data_validation(self) -> FinalDataValidationArtifact:
         try:
             logging.info("Initiate Final Data Validation Process.....")
             overall_status: List[bool] = []
+            train_df = read_csv(file_path=self.data_transformation_artifact.transformed_train_file_path)
+            test_df = read_csv(file_path=self.data_transformation_artifact.transformed_test_file_path)
 
+            target_column = self._schema_config['data']['target_column']
+
+            logging.info(f"Drop {target_column} from Train Dataset")
+            X_train = train_df.drop(labels=target_column, axis=1)
+            logging.info(X_train.head())
+            y_train = train_df[target_column]
+
+            logging.info(f"Drop {target_column} from Test Dataset")
+            X_test = test_df.drop(labels=target_column, axis=1)
+            logging.info(X_test.head())
+            y_test = test_df[target_column]
+
+            # Overall column check
+            train_status = self.column_check(dataframe=X_train)
+            overall_status.append(train_status)
+            test_status = self.column_check(dataframe=X_test)
+            overall_status.append(test_status)
+
+            if all(overall_status):
+                logging.info("Final validation successful.")
+                X_train_arr = X_train.to_numpy()
+                y_train_arr = np.array(y_train)
+                X_test_arr = X_test.to_numpy()
+                y_test_arr = np.array(y_test)
+
+                train_arr = np.c_[X_train_arr, y_train_arr]
+                test_arr = np.c_[X_test_arr, y_test_arr]
+
+                save_numpy_array_data(file_path=self.data_validation_config.valid_train_file_path, array=train_arr)
+                save_numpy_array_data(file_path=self.data_validation_config.valid_test_file_path, array=test_arr)
+
+                data_validation_artifact=FinalDataValidationArtifact(
+                    validation_status=all(overall_status),
+                    valid_train_file_path=self.data_validation_config.valid_train_file_path,
+                    valid_test_file_path=self.data_validation_config.valid_test_file_path,
+                    invalid_train_file_path=None,
+                    invalid_test_file_path=None
+                )
+                return data_validation_artifact
+            else:
+                logging.info("Final validation falied.")
+                save_csv(file_path=self.data_validation_config.invalid_train_file_path, dataframe=train_df)
+                save_csv(file_path=self.data_validation_config.invalid_test_file_path, dataframe=test_df)
+                data_validation_artifact=FinalDataValidationArtifact(
+                    validation_status=all(overall_status),
+                    valid_train_file_path=None,
+                    valid_test_file_path=None,
+                    invalid_train_file_path=self.data_validation_config.invalid_train_file_path,
+                    invalid_test_file_path=self.data_validation_config.invalid_test_file_path
+                )
+                return data_validation_artifact
 
         except Exception as e:
             raise CustomException(e, sys) from e

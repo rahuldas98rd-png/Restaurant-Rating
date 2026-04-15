@@ -14,5 +14,6 @@ mlflow
 pyyaml
 streamlit
 nbformat
+mlflow
 
 -e .

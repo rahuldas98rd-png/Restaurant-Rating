@@ -82,4 +82,15 @@ transformation_columns:
   - Average Cost for two
   - Votes
 
-
+final_columns:
+  - Country Code
+  - City
+  - Average Cost for two
+  - Currency
+  - Has Table booking
+  - Has Online delivery
+  - Is delivering now
+  - Price range
+  - Votes
+  - Cuisine_Count
+  - Cuisine_avg_rating
