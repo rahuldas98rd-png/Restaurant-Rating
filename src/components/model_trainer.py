@@ -80,7 +80,7 @@ class ModelTrainer:
             train_arr = load_numpy_array_data(file_path=self.data_validation_artifact.valid_train_file_path)
             test_arr = load_numpy_array_data(file_path=self.data_validation_artifact.valid_test_file_path)
 
-            logging.info("Separating X_train, y_trainm X_test, y_test")
+            logging.info("Separating X_train, y_train X_test, y_test")
             X_train, y_train, X_test, y_test = (
                 train_arr[:, :-1],
                 train_arr[:, -1],

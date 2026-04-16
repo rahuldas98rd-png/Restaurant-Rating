@@ -6,9 +6,11 @@ import numpy as np
 import os, sys
 from typing import List, Dict
 from collections import Counter
+from dotenv import load_dotenv
 from src.utils.main_utils.utils import (read_yaml_file, write_yaml_file, 
                                         read_csv, save_csv,
-                                        save_numpy_array_data)
+                                        save_numpy_array_data,
+                                        fetch_data_from_database)
 
 from src.entity.artifact_entity import (DataIngestionArtifact,
                                         PrimaryDataValidationArtifact,
@@ -213,6 +215,9 @@ class DriftValidation:
     def check_data_drift(self)->bool:
         try:
             base_df = read_csv(self.drift_validation_config.base_data_file_path)
+            # load_dotenv()
+            # collection_name=os.getenv("HISTORICAL_COLLECTION_NAME")
+            # base_df = fetch_data_from_database(collection_name=collection_name)
             current_df = read_csv(self.data_transformation_artifact.transformed_train_file_path)
             status = self.drift_status(base_df=base_df, current_df=current_df)
             return status
@@ -248,6 +253,7 @@ class FinalDataValidation:
             
         except Exception as e:
             raise CustomException(e, sys) from e
+ 
         
     def initiate_final_data_validation(self) -> FinalDataValidationArtifact:
         try:

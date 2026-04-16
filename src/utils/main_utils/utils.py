@@ -1,11 +1,17 @@
-import os, sys, yaml, pickle
+import os, sys, yaml, pickle, json
 from src.exception.exception import CustomException
 from src.logging.logger import get_logger
+from dotenv import load_dotenv
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
-from typing import Dict, List
-import matplotlib.pyplot as plt
+from pymongo.mongo_client import MongoClient
+from pymongo.server_api import ServerApi
+import certifi
+
+load_dotenv()
+mongodb_url = os.getenv("MONGO_DB_URL")
+database = os.getenv("DATABSE")
+ca = certifi.where()
 
 logging = get_logger(__name__)
 
@@ -91,5 +97,64 @@ def load_object(file_path: str) -> object:
         with open(file_path, "rb") as file_obj:
             print(file_obj)
             return pickle.load(file_obj)
+    except Exception as e:
+        raise CustomException(e, sys) from e
+    
+
+def fetch_data_from_database(collection_name:str,
+                             database_name:str=database)->pd.DataFrame:
+    try:
+        logging.info(f"Initiate Data Base Connection with: {database_name} collection: {collection_name}")
+        mongo_client=MongoClient(mongodb_url, server_api=ServerApi('1'), tlsCAFile=ca)
+        collection=mongo_client[database_name][collection_name]
+        logging.info("Data base connection established")
+
+        df=pd.DataFrame(list(collection.find()))
+        logging.info("Required data retrieved")
+        
+        if "_id" in list(df.columns):
+            df.drop(labels=["_id"], axis=1, inplace=True)
+
+        logging.info("Dataframe import successful.")
+        logging.info(f"Loaded {df.shape[0]:,} rows X {df.shape[1]} columns")
+
+        logging.info("Replacing any possible 'na' values in with dataframe with 'np.nan'")
+        df.replace({'na': np.nan}, inplace=True)
+        
+        """Logging a quick statistical summary of the DataFrame."""
+        logging.info(f"\n{'='*60}")
+        logging.info(f"DATASET SUMMARY")
+        logging.info(f"Shape       : {df.shape}")
+        logging.info(f"Memory usage: {df.memory_usage(deep=True).sum() / 1e6:.2f} MB")
+        logging.info(f"Quick Info  :\n{df.info()}")
+        logging.info(f"Missing vals:\n{df.isnull().sum()[df.isnull().sum() > 0].to_string()}")
+        logging.info(f"Dtypes:\n{df.dtypes.to_string()}")
+        logging.info(f"{'='*60}")
+
+        return df
+    except Exception as e:
+        raise CustomException(e, sys) from e
+    
+
+def insert_data_into_database(collection_name:str,
+                              data:pd.DataFrame=None,
+                              database_name:str=database,
+                              file_path:str=None) -> None:
+    try:
+        if file_path:
+            df:pd.DataFrame = pd.read_csv(file_path)
+        else:
+            df=data
+        df.reset_index(drop=True, inplace=True)
+        records:json = list(json.loads(df.T.to_json()).values())
+
+        logging.info(f"Initiate Data Base Connection with: {database_name} collection: {collection_name}")
+        mongo_client=MongoClient(mongodb_url, server_api=ServerApi('1'), tlsCAFile=ca)
+        logging.info("Data base connection established")
+
+        collection=mongo_client[database_name][collection_name]
+        collection.insert_many(records)
+        logging.info(f"{len(records)} records insertion complete")
+
     except Exception as e:
         raise CustomException(e, sys) from e

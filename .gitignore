@@ -22,3 +22,4 @@ mlflow.db
 final_model/
 
 my_test.py
+my_test.ipynb

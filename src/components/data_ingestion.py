@@ -13,7 +13,7 @@ from src.logging.logger import get_logger
 
 from src.entity.config_entity import DataIngestionConfig
 from src.entity.artifact_entity import DataIngestionArtifact
-from src.utils.main_utils.utils import save_csv, read_yaml_file
+from src.utils.main_utils.utils import save_csv, read_yaml_file, fetch_data_from_database
 from src.constants.training_pipeline import SCHEMA_FILE_PATH
 
 load_dotenv()
@@ -37,33 +37,7 @@ class DataIngestion:
             database_name=self.data_ingestion_config.database_name
             collection_name=self.data_ingestion_config.collection_name
 
-            logging.info(f"Initiate Data Base Connection with: {database_name} collection: {collection_name}")
-            self.mongo_client=MongoClient(mongodb_url, server_api=ServerApi('1'), tlsCAFile=ca)
-            collection=self.mongo_client[database_name][collection_name]
-            logging.info("Data base connection established")
-
-            df=pd.DataFrame(list(collection.find()))
-            logging.info("Required data retrieved")
-            
-            if "_id" in list(df.columns):
-                df.drop(labels=["_id"], axis=1, inplace=True)
-
-            logging.info("Dataframe import successful.")
-            logging.info(f"Loaded {df.shape[0]:,} rows X {df.shape[1]} columns")
-
-            logging.info("Replacing any possible 'na' values in with dataframe with 'np.nan'")
-            df.replace({'na': np.nan}, inplace=True)
-            
-            """Logging a quick statistical summary of the DataFrame."""
-            logging.info(f"\n{'='*60}")
-            logging.info(f"DATASET SUMMARY")
-            logging.info(f"Shape       : {df.shape}")
-            logging.info(f"Memory usage: {df.memory_usage(deep=True).sum() / 1e6:.2f} MB")
-            logging.info(f"Quick Info  :\n{df.info()}")
-            logging.info(f"Missing vals:\n{df.isnull().sum()[df.isnull().sum() > 0].to_string()}")
-            logging.info(f"Dtypes:\n{df.dtypes.to_string()}")
-            logging.info(f"{'='*60}")
-
+            df = fetch_data_from_database(database_name=database_name,collection_name=collection_name)
             return df
 
         except Exception as e:

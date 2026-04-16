@@ -3,6 +3,7 @@ import os, sys, argparse, time
 from src.logging.logger import get_logger
 from src.exception.exception import CustomException
 from src.pipeline.training_pipeline import TrainingPipeline
+from src.pipeline.batch_prediction import BatchPredict
 from src.constants.training_pipeline import PROJECT_NAME, PROJECT_VERSION
 
 
@@ -36,8 +37,25 @@ class RunTraining:
         except Exception as e:
             raise CustomException(e, sys)
         
+    def batch_prediction(self) -> None:
+        try:
+            start_time = time.time()
+            args = RunTraining.parse_args()
+            logging.info(f"Starting prediction pipeline — {self.project_name} v{self.project_version}")
+
+            prediction_pipeline = BatchPredict()
+            prediction_pipeline.get_batch_prediction()
+
+            elapsed = time.time() - start_time
+            logging.info(f"\n{'='*60}")
+            logging.info(f"Training complete in {elapsed:.1f}s")
+            logging.info(f"{'='*60}")
+        except Exception as e:
+            raise CustomException(e, sys)
+        
 if __name__=="__main__":
     run = RunTraining()
     run.training()
+    run.batch_prediction()
         
 

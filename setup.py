@@ -6,6 +6,12 @@ of your project, such as its metadata, dependencies and more.
 
 from setuptools import find_packages, setup
 from typing import List
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+author_name=os.getenv("AUTHOR_NAME")
+author_mail=os.getenv("AUTHOR_MAIL")
 
 def get_requirements() -> List[str]:
     """
@@ -34,8 +40,8 @@ setup(
     name='RestaurantRating',
     version='1.0.0',
     description='End-to-End ML pipeline to calculate Restaurant Rating',
-    author='Rahul',
-    author_email='pymail7789@gmail.com',
+    author=author_name,
+    author_email=author_mail,
     python_requires='>=3.13',
     packages=find_packages(),
     install_requires=get_requirements(),

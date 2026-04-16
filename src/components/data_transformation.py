@@ -12,7 +12,7 @@ from src.entity.config_entity import DataTransformationConfig
 
 from src.logging.logger import get_logger
 from src.exception.exception import CustomException
-from src.utils.main_utils.utils import read_csv, save_object, read_yaml_file, save_csv
+from src.utils.main_utils.utils import read_csv, save_object, read_yaml_file, save_csv, write_yaml_file
 
 logging = get_logger(__name__)
 
@@ -24,6 +24,7 @@ class DataTransformation:
             self.data_transformation_config = data_transformation_config
             self.data_validation_artifact = data_validation_artifact
             self._schema_config = read_yaml_file(SCHEMA_FILE_PATH)
+            self.transform_object_dir = self.data_transformation_config.transformed_object_dir
             
         except Exception as e:
             raise CustomException(e, sys) from e
@@ -42,6 +43,9 @@ class DataTransformation:
             binary_columns = self._schema_config['binary_columns']
             for col in binary_columns:
                 dataframe[col] = dataframe[col].replace(binary_mapping)
+            write_yaml_file(file_path=os.path.join(self.transform_object_dir,"binary_mapping.yaml"),
+                            content=binary_mapping)
+            write_yaml_file(file_path="final_model/binary_mapping.yaml", content=binary_mapping)
             return dataframe
         except Exception as e:
             raise CustomException(e, sys) from e
@@ -51,13 +55,15 @@ class DataTransformation:
             target_encoding_columns = self._schema_config['target_encoding_columns']
             for col in target_encoding_columns:
                 df_rated = dataframe[dataframe[target]>0]
-                city_avg_rating = (df_rated.groupby([col])[target]
+                avg_rating = (df_rated.groupby([col])[target]
                                 .agg(average_rating='mean')
                                 .sort_values(by='average_rating')
                                 .reset_index())
-                city_mapping = dict(zip(city_avg_rating[col], city_avg_rating['average_rating']))
-                X[col] = X[col].replace(city_mapping)
-
+                mapping = dict(zip(avg_rating[col], avg_rating['average_rating']))
+                X[col] = X[col].replace(mapping)
+                write_yaml_file(file_path=os.path.join(self.transform_object_dir,f"{col}_mapping.yaml"),
+                                content=mapping)
+                write_yaml_file(file_path=os.path.join("final_model",f"{col}_mapping.yaml"), content=mapping)
             return X
         except Exception as e:
             raise CustomException(e, sys) from e
@@ -84,14 +90,17 @@ class DataTransformation:
                         .reset_index()
                     )
             cuisine_mapping = dict(zip(stats['Cuisine'], stats['Avg_Rating']))
+            write_yaml_file(file_path=os.path.join(self.transform_object_dir,"cuisine_mapping.yaml"),
+                            content=cuisine_mapping)
+            write_yaml_file(file_path="final_model/cuisine_mapping.yaml", content=cuisine_mapping)
             dataframe['Cuisine'] = dataframe['Cuisine'].replace(cuisine_mapping)
 
-            cuisine_rating_train = (
+            cuisine_rating = (
                         dataframe.groupby("Restaurant ID")['Cuisine']
                         .agg(Cuisine_avg_rating='mean')
                         .reset_index()
                     )
-            X = pd.merge(X, cuisine_rating_train, how='inner',on='Restaurant ID')
+            X = pd.merge(X, cuisine_rating, how='inner',on='Restaurant ID')
             return X
         except Exception as e:
             raise CustomException(e, sys) from e
@@ -162,16 +171,26 @@ class DataTransformation:
                 test_df = read_csv(self.data_validation_artifact.valid_test_file_path)
                 logging.info(f"Loaded test dataset: {test_df}")
 
-                target_column = self._schema_config['data']['target_column']
-
                 # Missing value handling
                 logging.info(f"{'='*15}Missing values in train dataset before{'='*15}")
                 logging.info(train_df.isnull().sum())
-                X_train = self.handle_missing_values(datframe=train_df)
+                train_df = self.handle_missing_values(datframe=train_df)
                 logging.info(f"{'='*15}Missing values in train dataset after{'='*15}")
                 logging.info(train_df.isnull().sum())
-                X_test = self.handle_missing_values(datframe=test_df)
+                test_df = self.handle_missing_values(datframe=test_df)
                 logging.info("Missing values handled from test dataset")
+
+                target_column = self._schema_config['data']['target_column']
+                # Drop target column from train dataset
+                logging.info(f"Drop {target_column} from Train Dataset")
+                X_train = train_df.drop(labels=target_column, axis=1)
+                logging.info(X_train.head())
+                y_train = train_df[target_column]
+                # Drop target column from test dataset
+                logging.info(f"Drop {target_column} from Test Dataset")
+                X_test = test_df.drop(labels=target_column, axis=1)
+                logging.info(X_test.head())
+                y_test = test_df[target_column]
 
                 # Binary Encoding
                 logging.info("Perform binary encoding")
@@ -198,7 +217,7 @@ class DataTransformation:
                 X_test = self.encode_cuisines(dataframe=test_df, X=X_test)
 
                 # Drop unwanted columns
-                logging.info("Drop unwanted columnsdrop_unwanted_columns")
+                logging.info("Drop unwanted columns")
                 X_train = self.drop_unwanted_columns(dataframe=X_train)
                 logging.info(X_train.head())
                 X_test = self.drop_unwanted_columns(dataframe=X_test)
@@ -210,6 +229,7 @@ class DataTransformation:
                 logging.info(X_train.head())
                 X_test = self.log_transform(dataframe=X_test)
 
+                # Normalization
                 logging.info(f"Perform scaling on {transform_columns}")
                 preprocessor = self.get_preprocessor()
                 logging.info("Applying fit_transform on Train Dataset")
@@ -219,15 +239,19 @@ class DataTransformation:
                 X_test = preprocessor.transform(X_test)
                 save_object(file_path="final_model/preprocessor.pkl", obj=preprocessor)
                 
+                # Rename columns
                 logging.info(f"Rename columns {X_train.columns}")
                 X_train = self.rename_columns(dataframe=X_train)
                 logging.info(X_train.head())
                 X_test = self.rename_columns(dataframe=X_test)
+
+                transformed_train_file = pd.concat([X_train, y_train], axis=1)
+                transformed_test_file = pd.concat([X_test, y_test], axis=1)
                 
                 save_csv(file_path=self.data_transformation_config.transformed_train_file_path,
-                         dataframe=X_train)
+                         dataframe=transformed_train_file)
                 save_csv(file_path=self.data_transformation_config.transformed_test_file_path,
-                         dataframe=X_test)
+                         dataframe=transformed_test_file)
                 save_object(file_path=self.data_transformation_config.transformed_object_file_path,
                             obj=preprocessor)
                 
