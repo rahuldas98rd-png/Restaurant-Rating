@@ -1,0 +1,239 @@
+country_code:
+  {
+    "India (1)": 1,
+    "Australia (14)": 14,
+    "Brazil (30)": 30,
+    "Indonesia (94)": 94,
+    "Chad (148)": 148,
+    "Philippines (162)": 162,
+    "New Zealand (166)": 166,
+    "Qatar (166)": 166,
+    "Singapore (184)": 184,
+    "South Africa (189)": 189,
+    "Sri Lanka (191)": 191,
+    "Turkey (208)": 208,
+    "UAE (214)": 214,
+    "United Kingdom (215)": 215,
+    "United States (216)": 216
+  }
+
+cities:
+  - Abu Dhabi
+  - Agra
+  - Ahmedabad
+  - Albany
+  - Allahabad
+  - Amritsar
+  - Ankara
+  - Armidale
+  - Athens
+  - Auckland
+  - Augusta
+  - Aurangabad
+  - Bangalore
+  - Bhopal
+  - Bhubaneshwar
+  - Birmingham
+  - Bogor
+  - Boise
+  - Brasília
+  - Cape Town
+  - Cedar Rapids/Iowa City
+  - Chandigarh
+  - Chennai
+  - Clatskanie
+  - Coimbatore
+  - Colombo
+  - Columbus
+  - Dalton
+  - Davenport
+  - Dehradun
+  - Des Moines
+  - Doha
+  - Dubai
+  - Dubuque
+  - Edinburgh
+  - Faridabad
+  - Gainesville
+  - Ghaziabad
+  - Goa
+  - Gurgaon
+  - Guwahati
+  - Hyderabad
+  - Indore
+  - Jaipur
+  - Jakarta
+  - Kanpur
+  - Kochi
+  - Kolkata
+  - London
+  - Lucknow
+  - Ludhiana
+  - Macon
+  - Makati City
+  - Manchester
+  - Mangalore
+  - Monroe
+  - Mumbai
+  - Mysore
+  - Nagpur
+  - Nashik
+  - New Delhi
+  - Noida
+  - Orlando
+  - Panchkula
+  - Pasig City
+  - Patna
+  - Pensacola
+  - Pocatello
+  - Pretoria
+  - Puducherry
+  - Pune
+  - Ranchi
+  - Rest of Hawaii
+  - Rio de Janeiro
+  - Sandton
+  - Savannah
+  - Sharjah
+  - Singapore
+  - Sioux City
+  - Surat
+  - São Paulo
+  - Tampa Bay
+  - Tanunda
+  - Vadodara
+  - Valdosta
+  - Varanasi
+  - Vizag
+  - Waterloo
+  - Wellington City
+  - Istanbul
+
+currencies:
+  - Botswana Pula(P)
+  - Brazilian Real(R$)
+  - Dollar($)
+  - Emirati Diram(AED)
+  - Indian Rupees(Rs.)
+  - Indonesian Rupiah(IDR)
+  - NewZealand($)
+  - "Pounds(\uFFFD\uFFFD)"
+  - Qatari Rial(QR)
+  - Rand(R)
+  - Sri Lankan Rupee(LKR)
+  - Turkish Lira(TL)
+
+cuisines:
+  - Afghani
+  - American
+  - Andhra
+  - Arabian
+  - Argentine
+  - Asian
+  - Australian
+  - Awadhi
+  - BBQ
+  - Bakery
+  - Bar Food
+  - Bengali
+  - Beverages
+  - Biryani
+  - Brazilian
+  - Breakfast
+  - British
+  - Burger
+  - Burmese
+  - Cafe
+  - Cajun
+  - Cantonese
+  - Caribbean
+  - Chettinad
+  - Chinese
+  - Coffee and Tea
+  - Continental
+  - Cuban
+  - Curry
+  - Desserts
+  - Dim Sum
+  - Diner
+  - Durban
+  - European
+  - Fast Food
+  - Filipino
+  - Finger Food
+  - French
+  - Goan
+  - Gourmet Fast Food
+  - Greek
+  - Grill
+  - Healthy Food
+  - Hyderabadi
+  - Ice Cream
+  - Indian
+  - Indonesian
+  - International
+  - Iranian
+  - Irish
+  - Italian
+  - Izgara
+  - Japanese
+  - Juices
+  - Kashmiri
+  - Kebab
+  - Kerala
+  - Kiwi
+  - Korean
+  - Latin American
+  - Lebanese
+  - Lucknowi
+  - Maharashtrian
+  - Malaysian
+  - Mangalorean
+  - Mediterranean
+  - Mexican
+  - Middle Eastern
+  - Mithai
+  - Modern Australian
+  - Modern Indian
+  - Mughlai
+  - Nepalese
+  - North Indian
+  - Pakistani
+  - Parsi
+  - Patisserie
+  - Pizza
+  - Portuguese
+  - Rajasthani
+  - Raw Meats
+  - Restaurant Cafe
+  - Salad
+  - Sandwich
+  - Seafood
+  - South African
+  - South American
+  - South Indian
+  - Southern
+  - Southwestern
+  - Spanish
+  - Sri Lankan
+  - Steak
+  - Street Food
+  - Sushi
+  - Tapas
+  - Tea
+  - Tex-Mex
+  - Thai
+  - Tibetan
+  - Turkish
+  - Vegetarian
+  - Vietnamese
+  - Western
+  - World Cuisine
+
+price_range:
+  {
+    "Budget 🟢": 1, 
+    "Mid-range 🟡": 2, 
+    "Premium 🟠": 3, 
+    "Luxury 🔴": 4
+  }

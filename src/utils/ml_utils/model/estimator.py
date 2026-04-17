@@ -17,6 +17,7 @@ class RatingPredictor:
     def __init__(self):
         self.file_dir = "final_model"
         self._schema_config = read_yaml_file(SCHEMA_FILE_PATH)
+        self.model = load_object(file_path=os.path.join(self.file_dir,"best_model.pkl"))
 
     def binary_encoding(self, dataframe:pd.DataFrame, binary_mapping:dict)->pd.DataFrame:
         try:
@@ -147,17 +148,16 @@ class RatingPredictor:
         
     def predict_batch(self, dataframe: pd.DataFrame):
         try:
-            model = load_object(file_path=os.path.join(self.file_dir,"best_model.pkl"))
-            print(dataframe.columns)
+            logging.info(dataframe.columns)
             prediction_batch = self.transform(dataframe=dataframe)
-            print(prediction_batch.columns)
+            logging.info(prediction_batch.columns)
 
             logging.info(f'\n{prediction_batch.info()}')
             for col in prediction_batch.columns:
                 prediction_batch[col] = prediction_batch[col].astype(float)
             logging.info(f'\n{prediction_batch.info()}')
 
-            y_pred = model.predict(prediction_batch)
+            y_pred = self.model.predict(prediction_batch)
             predicted_data = pd.DataFrame(data=y_pred, columns=['Predicted_Rating'])
             output = pd.concat([dataframe,predicted_data], axis=1)
             return output
