@@ -1,0 +1,24 @@
+GradientBoost_Regressor:
+  best_params: {}
+  model_test_mae: 0.199243756438887
+  model_test_r2_score: 0.960390275423843
+  model_test_rmse: 0.3009605439661486
+  model_train_mae: 0.19332060868765427
+  model_train_r2_score: 0.962342705299045
+  model_train_rmse: 0.29449465604548225
+Random_Forest_Regressor:
+  best_params: {}
+  model_test_mae: 0.19845704385855562
+  model_test_r2_score: 0.9591076530751261
+  model_test_rmse: 0.30579450016866544
+  model_train_mae: 0.07647121975210622
+  model_train_r2_score: 0.9936089253867133
+  model_train_rmse: 0.12132206779626599
+XGBoost_Regressor:
+  best_params: {}
+  model_test_mae: 0.20824512610721818
+  model_test_r2_score: 0.9565253681071615
+  model_test_rmse: 0.3153019151002255
+  model_train_mae: 0.12587155464004796
+  model_train_r2_score: 0.9833454515228306
+  model_train_rmse: 0.19584806785270725
