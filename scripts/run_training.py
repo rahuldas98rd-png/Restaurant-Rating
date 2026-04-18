@@ -48,7 +48,7 @@ class RunTraining:
 
             elapsed = time.time() - start_time
             logging.info(f"\n{'='*60}")
-            logging.info(f"Training complete in {elapsed:.1f}s")
+            logging.info(f"Batch prediction complete in {elapsed:.1f}s")
             logging.info(f"{'='*60}")
         except Exception as e:
             raise CustomException(e, sys)
