@@ -1,54 +1,54 @@
-# 🍽️ Restaurant Rating Analysis & Prediction
+# 🍽️ Restaurant Rating Prediction — End-to-End ML Pipeline
 
-> End-to-end data science project covering exploratory data analysis, feature engineering, and regression modelling on a global restaurant dataset from Zomato.
-
----
-
-## 📌 Overview
-
-This project analyses **9,551 restaurants** across **15 countries** and **141 cities** to uncover the key factors that influence customer ratings — and then builds a predictive regression model to estimate a restaurant's aggregate rating from its attributes.
+> A production-grade, end-to-end machine learning system for predicting restaurant aggregate ratings. Built on a global Zomato dataset of **9,551 restaurants across 15 countries**, the project spans structured EDA, feature engineering, a modular training pipeline with drift detection, MLflow experiment tracking, and an interactive Streamlit prediction app.
 
 ---
 
-## 🗂️ Project Structure
+## 📌 Table of Contents
 
-```
-proj/
-├── batch_prediction_data
-│   └── batch_input.csv
-├── data-schema
-│   └── schema.yaml
-├── Notebooks
-│   ├── EDA
-│   ├── processed_data
-│   ├── reports
-│   └── __init__.py
-├── Restaurant_Data
-│   ├── Dataset.csv
-│   └── README.md
-├── scripts
-│   ├── push_data.py
-│   ├── run_inference.py
-│   ├── run_training.py
-│   └── test_mongodb_connection.py
-├── src
-│   ├── cloud
-│   ├── components
-│   ├── constants
-│   ├── entity
-│   ├── exception
-│   ├── logging
-│   ├── pipeline
-│   ├── utils
-│   └── __init__.py
-├── .env.example
-├── .gitignore
-├── app.py
-├── README.md
-├── requirements.txt
-├── setup.py
-└── tree_generator.py
-```
+- [Project Overview](#-project-overview)
+- [Live Demo](#-live-demo)
+- [Dataset](#-dataset)
+- [Project Structure](#-project-structure)
+- [System Architecture](#-system-architecture)
+- [Pipeline Deep-Dive](#-pipeline-deep-dive)
+  - [Data Flow & Database Connection](#1-data-flow--database-connection)
+  - [Data Ingestion](#2-data-ingestion)
+  - [Primary Data Validation](#3-primary-data-validation)
+  - [Data Transformation](#4-data-transformation)
+  - [Drift Validation](#5-drift-validation)
+  - [Final Data Validation](#6-final-data-validation)
+  - [Model Training & Selection](#7-model-training--selection)
+  - [Runtime Artifacts Generated](#8-runtime-artifacts-generated)
+- [Exploratory Data Analysis](#-exploratory-data-analysis)
+- [Feature Engineering](#-feature-engineering)
+- [Model Results](#-model-results)
+- [Tech Stack](#-tech-stack)
+- [Setup & Installation](#-setup--installation)
+- [Usage Guide](#-usage-guide)
+- [Key Findings](#-key-findings)
+
+---
+
+## 🎯 Project Overview
+
+This project builds a complete ML pipeline — from raw data ingestion out of MongoDB, through multi-stage validation, feature engineering, and model selection, to a deployable Streamlit web application. The pipeline is fully modular: each stage produces typed artifact dataclasses consumed by the next, making the system easy to extend, debug, and re-run.
+
+**What makes this project production-oriented:**
+- MongoDB-backed data ingestion with schema-driven validation
+- Multi-stage validation: structural checks → data drift (KS test) → post-transform integrity
+- Target encoding for high-cardinality features (city, country, cuisine) instead of naive one-hot encoding
+- MLflow experiment tracking for every trained model
+- A serialized preprocessing pipeline (`preprocessor.pkl`) for consistent train/inference transforms
+- Streamlit app with real-time single prediction and CSV-based batch prediction modes
+
+---
+
+## 📺 Live Demo
+
+| App Preview — Single Prediction | App Preview — Batch Prediction |
+|---|---|
+| ![App Preview 1](app/app_preview_1.png) | ![App Preview 2](app/app_preview_2.png) |
 
 ---
 
@@ -57,205 +57,339 @@ proj/
 | Attribute | Details |
 |---|---|
 | **Source** | Zomato Restaurant Data |
+| **File** | `Restaurant_Data/Dataset.csv` |
 | **Records** | 9,551 restaurants |
 | **Features** | 21 columns (8 numerical, 13 categorical) |
 | **Countries** | 15 |
 | **Cities** | 141 |
 | **Target Variable** | `Aggregate rating` (0.0 – 5.0) |
+| **Encoding** | UTF-8 with BOM (`utf-8-sig`) |
 
-**Key features:** Restaurant name, city, country, cuisines, average cost for two, price range, table booking availability, online delivery availability, votes.
+**Key input features:** Country Code, City, Cuisines, Average Cost for Two, Currency, Has Table Booking, Has Online Delivery, Is Delivering Now, Price Range, Votes.
 
----
+**Rating Scale:**
 
-## 🔍 Notebook 1 — Data Exploration & Preprocessing
-
-Initial structural inspection of the dataset covering missing values, duplicates, data types, and target variable distribution.
-
-### Missing Value Analysis
-
-![Missing Value Analysis](Notebooks/reports/missing_value_analysis.png)
-
-The dataset is remarkably clean. Of all 21 columns, only `Cuisines` contains missing values — exactly **9 rows (0.09%)**. Since imputing a cuisine type would introduce arbitrary noise, these rows were dropped entirely. All other features are 100% complete, which means no imputation strategies were needed elsewhere and the dataset is ready for analysis with minimal cleaning.
-
----
-
-### Target Variable Distribution
-
-![Rating Histogram](Notebooks/reports/rating_histogram.png)
-
-The `Aggregate rating` distribution reveals an important data quality issue: **2,148 restaurants (22.5%)** carry a rating of 0.0, labelled "Not rated" in the `Rating text` column. These are genuine missing values — not true zero ratings — and 1,054 of them have zero votes, confirming they were never reviewed. These records were excluded from all rating-based analyses to prevent distortion.
-
-Among actually-rated restaurants, the distribution is broadly centred around **3.0–3.6** (the "Average" band), with the count gradually declining toward higher ratings. Very few restaurants score above 4.5, making "Excellent" a genuinely rare achievement in this dataset.
-
----
-
-### Univariate Analysis of Categorical Features
-
-![Univariate Analysis of Categorical Features](Notebooks/reports/Univariate_analysis_categorical_features.png)
-
-The categorical overview exposes several structural imbalances:
-
-- **Country Code:** India (code 1) accounts for roughly **~8,500 of 9,551 restaurants (~89%)**, making geography a dominant source of distributional bias that must be accounted for in modelling.
-- **Table Booking:** Only ~12% of restaurants offer table booking — a rare but informative feature.
-- **Online Delivery:** ~26% offer online delivery, slightly more evenly spread than table booking.
-- **Delivering Now / Switch to Order Menu:** Near-zero counts across the dataset — these columns carry almost no information and were dropped before modelling.
-- **Price Range:** Budget (46.5%) and Mid (32.6%) dominate. Premium (14.7%) and Luxury (6.1%) are underrepresented but show more consistent rating patterns.
-
----
-
-## 🔍 Notebook 2 — Table Booking, Online Delivery & Price Analysis
-
-### Table Booking & Online Delivery Availability
-
-![Table Booking and Online Delivery](Notebooks/reports/Table_Booking_Online_Delivery_Analysis.png)
-
-The overwhelming majority of restaurants support neither service. **87.9% have no table booking** and **74.3% have no online delivery**. These low adoption rates suggest that restaurants offering these features may represent a distinct, typically higher-quality operational tier rather than a baseline expectation.
-
----
-
-### Average Rating: With vs Without Table Booking
-
-![Avg Rating With vs Without Table Booking](Notebooks/reports/Avg_Rating_With_vs_Without_Table_Booking.png)
-
-Restaurants with table booking average a rating of **3.59** compared to **3.41** for those without — a difference of 0.18 points against the overall average of 3.44. While modest in absolute size, this gap is consistent across the full dataset. Table booking appears to act as a proxy for restaurant quality tier: establishments that invest in reservation infrastructure tend to be better managed and better reviewed.
-
----
-
-### Online Delivery by Price Range
-
-![Online Delivery Availability by Price Range](Notebooks/reports/Online_Delivery_Availability_by_Price_Range.png)
-
-Online delivery adoption follows a non-linear pattern across price tiers. It peaks in the **Mid tier (41.3%)**, drops in Premium (29.3%), falls further in Budget (15.8%), and is nearly absent in Luxury (9.0%). The mid-tier peak makes intuitive sense: mid-range restaurants have both the operational capacity to support delivery and sufficient price-point incentive to attract delivery orders. Luxury restaurants, by contrast, rely on the in-person dining experience as a core part of their value.
-
----
-
-### Price Range Distribution
-
-![Common Price Range Analysis](Notebooks/reports/Common_price_range_analysis.png)
-
-The restaurant market is heavily skewed toward affordable dining. **Budget (46.5%)** and **Mid (32.6%)** together represent nearly 80% of all restaurants. Luxury makes up only 6.1%, meaning any model trained on this data must handle class imbalance across price tiers carefully to avoid over-predicting outcomes for the majority segment.
-
----
-
-### Average Rating by Price Range
-
-![Avg Rating for Different Price Range](Notebooks/reports/Avg_Rating_for_different_price_range.png)
-
-There is a clear and monotonic relationship between price tier and rating: **Budget → 3.24, Mid → 3.38, Premium → 3.78, Luxury → 3.89**. Only Premium and Luxury restaurants consistently exceed the overall average of 3.44. The jump from Mid to Premium (+0.40) is notably larger than the jump from Budget to Mid (+0.14), suggesting a meaningful quality threshold exists between the mid and premium tiers. Price range is one of the strongest single categorical predictors in the dataset.
-
----
-
-## 🔍 Notebook 3 — Customer Preference & Cuisine Analysis
-
-### Top 20 Most Represented Cuisines
-
-![Top 20 Cuisines Barplot](Notebooks/reports/Top_20_cuisines_barplot.png)
-
-North Indian cuisine dominates the dataset with **3,960 restaurant entries**, followed by Chinese (2,735) and Fast Food (1,986) — a direct reflection of the dataset's heavy India skew. The drop-off after the top three is steep: Mughlai (995), Italian (764), and Bakery (745) are next, each with less than a quarter of North Indian's count. Cuisines like Thai, Beverages, and Mexican are niche representations, appearing in fewer than 250 restaurants each.
-
----
-
-### Top 10 Cuisines by Average Rating
-
-![Top 10 Cuisines by Average Rating](Notebooks/reports/Top_10_Cuisines_by_Average_Rating.png)
-
-Filtering to cuisines with at least 20 restaurants for statistical reliability, **Brazilian cuisine leads with an average rating of 4.34**, followed by International (4.25), Indian (4.16), Bar Food (4.15), and Southern (4.13). Every cuisine in this top 10 exceeds 4.0 — notably, none of them are high-volume cuisines from the count chart above. This confirms a quality-over-quantity pattern: boutique and specialised dining options consistently outperform mainstream, high-frequency cuisines on customer ratings.
-
----
-
-### Top 10 Most Popular Cuisines by Votes
-
-![Top 10 Most Popular Cuisines by Votes](Notebooks/reports/Top_10_Most_Popular_Cuisines_by_Votes.png)
-
-Popularity by total customer votes tells a completely different story from ratings. **North Indian accumulates 595,981 votes** — nearly double Chinese (364,351) and more than double Italian (329,265). High vote counts reflect widespread customer engagement rather than quality. Crucially, North Indian does not appear in the top-rated cuisine chart, while cuisines like Brazilian and Southern top ratings but generate minimal vote volume. Volume and quality are largely decoupled in this dataset.
-
----
-
-### Customer Preference Analysis — Quality vs Scale
-
-![Cuisine Analysis Charts](Notebooks/reports/cuisine_analysis_charts.png)
-
-The bubble scatter plot and bar chart together visualise the **quality vs. popularity tradeoff** at a glance. High-rated cuisines (Brazilian, International, Indian) cluster in the upper-left — high average rating, low restaurant count. Mass-market cuisines cluster at lower ratings but massive restaurant counts and vote volumes. The dashed threshold at 4.0 cleanly separates the boutique, high-quality tier from the mainstream. Only **11 out of 145 unique cuisine types** maintain a 4.0+ average rating when filtered to cuisines with sufficient representation.
-
----
-
-## 🔍 Notebook 4 — Feature Engineering & Regression Modelling
-
-### Distribution Analysis of Numerical Features
-
-![Distribution Analysis of Numerical Features](Notebooks/reports/Distribution_Analysis_of_numerical_features.png)
-
-The longitude and latitude distributions both spike sharply around India's geographic coordinates (~75–80°E, ~20–30°N), visually confirming the geographic concentration of the dataset. Both `Average Cost for two` and `Votes` are severely right-skewed with long tails and extreme outliers — the x-axis extends to 800,000 for cost and 10,000+ for votes. These distributions made `log1p` transformation essential to compress the scale and reduce the disproportionate influence of outlier restaurants on model training.
-
----
-
-### Inter-Feature Correlation Heatmap
-
-![Inter-correlation of Input Features](Notebooks/reports/Inter-correlation_of_input_features.png)
-
-Several strong inter-feature correlations inform feature selection and encoding decisions:
-
-- `Country Code` ↔ `Currency`: r = **0.99** — near-perfect correlation since each country uses a unique currency. One of these is effectively redundant; `Currency` was target-encoded but carries the same geographic information as `Country Code`.
-- `Country Code` ↔ `City`: r = **0.72** — cities cluster by country, so these two encode overlapping geographic signals.
-- `Price range` ↔ `Has Table booking`: r = **0.51** — upscale restaurants are significantly more likely to accept reservations, reinforcing table booking as a quality proxy.
-- `Cuisine_avg_rating` ↔ `Price range`: r = **0.54** — cuisine type and price tier share substantial predictive signal, suggesting they both capture the "quality tier" of a restaurant from different angles.
-
----
-
-### Feature Correlation with Target
-
-![Correlation with Target](Notebooks/reports/correlation_with_target.png)
-
-The engineered features dominate the feature-target correlation ranking:
-
-- **`Price range`** (r = 0.44) — strongest single predictor; higher-tier restaurants consistently earn better ratings.
-- **`Cuisine_avg_rating`** (r = 0.42) — custom feature built by target-encoding each cuisine with its mean rating; nearly as powerful as price range and represents the quality signal embedded in cuisine choice.
-- **`City`** (r = 0.41) — target-encoded city captures strong geographic quality effects; where a restaurant operates matters independently of price and cuisine.
-- **`Votes`** (r = 0.31) — more-engaged restaurants tend to be better-reviewed; engagement and quality reinforce each other.
-- **`Has Online delivery`** (r = 0.23) and **`Has Table booking`** (r = 0.19) — modest but consistent positive signals.
-- **`Longitude`** (r = -0.11) — slight negative correlation, a proxy for the geographic westward bias away from India's coordinates where higher-rated restaurants are more frequent.
-
----
-
-### Location vs Rating Analysis
-
-![Location vs Rating](Notebooks/reports/location_vs_rating.png)
-
-**London tops the city-level average rating ranking at 4.54**, followed by Tampa Bay (4.41) and Bangalore (4.38). Cities were filtered to those with at least 20 restaurants to ensure reliable averages. The global bubble chart reinforces the geographic story: darker green, larger bubbles — representing higher ratings — concentrate in South Asia (India) and the Middle East. The wide spread of average ratings across cities (from ~3.1 to 4.54) confirms that city-level encoding captures a genuine and substantial signal.
-
----
-
-## 🤖 Modelling Summary
-
-### Feature Engineering Pipeline
-
-| Transformation | Columns Affected | Reason |
+| Color | Label | Range |
 |---|---|---|
-| Row removal | `Cuisines` (9 nulls) | Too few to impute reliably |
-| Stratified train/test split (80/20) | All | Preserves rating bucket distribution across splits |
-| Binary encoding (No→0, Yes→1) | `Has Table booking`, `Has Online delivery`, `Is delivering now`, `Switch to order menu` | Nominal binary columns |
-| Target (mean) encoding | `City`, `Currency`, `Country Code`, `Cuisines` | High-cardinality categoricals; preserves rating signal without exploding dimensionality |
-| Feature engineering | `Cuisine_Count` | Number of cuisines a restaurant serves — captures menu breadth as a diversity signal |
-| `log1p` transformation | `Average Cost for two`, `Votes` | Corrects severe right skew and dampens extreme outlier influence |
-| RobustScaler | `Longitude`, `Latitude`, `Average Cost for two`, `Votes` | Uses median + IQR; immune to the extreme outliers present in cost and votes |
+| 🟢 Dark Green | Excellent | 4.5 – 5.0 |
+| 🟩 Green | Very Good | 4.0 – 4.4 |
+| 🟡 Yellow | Good | 3.5 – 3.9 |
+| 🟠 Orange | Average | 3.0 – 3.4 |
+| 🔴 Red | Poor | 2.5 – 2.9 |
+| ⚪ White | Not Rated | 0.0 |
+
+> **Note:** 2,148 restaurants (22.5%) carry a rating of 0.0 ("Not rated"). These are genuine missing values, not true zeros — and were excluded from all modelling and rating-based analyses.
 
 ---
 
-### Model Benchmarking & Selection
+## 🗂️ Project Structure
 
-Multiple regression models were benchmarked before hyperparameter tuning was applied to the top three performers (Gradient Boosting, Random Forest, XGBoost) via `RandomizedSearchCV`.
+```
+Restaurant-Rating/
+│
+├── Restaurant_Data/
+│   ├── Dataset.csv                         # Raw Zomato dataset (9,551 records)
+│   └── README.md                           # Dataset column reference & notes
+│
+├── Notebooks/
+│   ├── EDA/
+│   │   ├── 01_EDA.ipynb                    # Data exploration & preprocessing
+│   │   ├── 02_EDA.ipynb                    # Table booking, delivery & price analysis
+│   │   ├── 03_EDA.ipynb                    # Cuisine & customer preference analysis
+│   │   ├── 04_regression_analysis.ipynb    # Feature engineering & model benchmarking
+│   │   ├── rating_dashboard.py             # Streamlit EDA dashboard
+│   │   └── utils/
+│   │       └── rating_histogram.py         # Histogram utility
+│   ├── processed_data/
+│   │   └── Dataset_filtered.csv            # Filtered dataset (output of Notebook 01)
+│   └── reports/                            # All EDA visualizations (.png exports)
+│
+├── src/                                    # Core ML package
+│   ├── components/
+│   │   ├── data_ingestion.py               # MongoDB fetch → train/test split
+│   │   ├── data_validation.py              # Primary, drift, and final validation
+│   │   ├── data_transformation.py          # Feature engineering & preprocessing
+│   │   └── model_trainer.py               # Multi-model benchmarking + MLflow tracking
+│   ├── pipeline/
+│   │   ├── training_pipeline.py            # Orchestrates all pipeline stages
+│   │   └── batch_prediction.py             # Batch inference from MongoDB
+│   ├── entity/
+│   │   ├── config_entity.py                # Typed config dataclasses per stage
+│   │   └── artifact_entity.py              # Typed artifact dataclasses per stage
+│   ├── constants/
+│   │   ├── training_pipeline/__init__.py   # All pipeline constants & path definitions
+│   │   └── models/__init__.py              # Model registry & hyperparameter search space
+│   ├── utils/
+│   │   ├── main_utils/utils.py             # File I/O, DB fetch, YAML helpers
+│   │   └── ml_utils/
+│   │       ├── metric/regression_metric.py # MAE, RMSE, R² computation + model evaluation
+│   │       └── model/estimator.py          # RatingPredictor class for batch inference
+│   ├── exception/exception.py              # Custom exception with traceback formatting
+│   └── logging/logger.py                   # Timestamped rotating file logger
+│
+├── app/
+│   ├── rating_app.py                       # Streamlit UI (single & batch prediction)
+│   ├── backend.py                          # Inference backend: transform + predict
+│   ├── data.yaml                           # UI dropdown options (cities, currencies, etc.)
+│   ├── styles/styles.py                    # Custom CSS for the Streamlit app
+│   └── templates/templates.py             # HTML templates for app components
+│
+├── scripts/
+│   ├── push_data.py                        # Upload raw CSVs to MongoDB collections
+│   ├── run_training.py                     # CLI entry point for training + batch prediction
+│   ├── run_inference.py                    # Standalone inference runner
+│   └── test_mongodb_connection.py          # MongoDB connectivity check
+│
+├── data_schema/
+│   └── schema.yaml                         # Column types, target, drop list, encoding config
+│
+├── historical_data/
+│   └── base_df.csv                         # Baseline data for KS-based drift detection
+│
+├── batch_prediction_data/
+│   └── batch_input.csv                     # Sample batch input for inference
+│
+├── final_model/                            # ← Generated at runtime (see §Runtime Artifacts)
+│   ├── best_model.pkl
+│   ├── preprocessor.pkl
+│   ├── binary_mapping.yaml
+│   ├── City_mapping.yaml
+│   ├── Country Code_mapping.yaml
+│   ├── Currency_mapping.yaml
+│   └── cuisine_mapping.yaml
+│
+├── Artifacts/                              # ← Generated at runtime, timestamped per run
+│   └── MM_DD_YYYY_HH_MM_SS/
+│       ├── data_ingestion/
+│       ├── data_validation/
+│       ├── data_transformation/
+│       └── model_trainer/
+│
+├── .env.example                            # Environment variable template
+├── requirements.txt
+└── setup.py
+```
+
+---
+
+## 🏗️ System Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                        RESTAURANT RATING PREDICTION SYSTEM                      │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+  ┌──────────────┐     push_data.py      ┌─────────────────────────────────────┐
+  │  Raw CSVs    │ ──────────────────►   │           MongoDB Atlas              │
+  │              │                       │  ┌─────────────────────────────────┐ │
+  │ Dataset.csv  │                       │  │  DB: Restaurant_DB               │ │
+  │ batch_input  │                       │  │  ├─ restaurant_details (train)   │ │
+  │ base_df.csv  │                       │  │  ├─ batch_collection             │ │
+  └──────────────┘                       │  └─ historical_collection           │ │
+                                         └──────────────┬──────────────────────┘ │
+                                                        │                         │
+                                         ┌──────────────▼──────────────────────┐ │
+                                         │        TRAINING PIPELINE             │ │
+                                         │   (scripts/run_training.py)          │ │
+                                         └──────────────┬──────────────────────┘ │
+                                                        │
+              ┌─────────────────────────────────────────▼──────────────────────┐
+              │                                                                  │
+              │  ①  DATA INGESTION          ②  PRIMARY VALIDATION               │
+              │  ─────────────────          ──────────────────────               │
+              │  • Fetch from MongoDB       • Column count check                 │
+              │  • Export feature store     • Numerical column types             │
+              │  • Stratified train/test    • Categorical column types           │
+              │    split (80/20)            • Missing value threshold            │
+              │                             • Validate → valid / invalid         │
+              │                                                                  │
+              │  ③  DATA TRANSFORMATION     ④  DRIFT VALIDATION                 │
+              │  ──────────────────────     ─────────────────────                │
+              │  • Drop irrelevant cols     • KS test (p > 0.05 = no drift)     │
+              │  • Binary encoding          • Compare transformed vs             │
+              │  • Feature engineering        historical baseline                │
+              │    (Cuisine_Count)          • Generate drift report YAML        │
+              │  • Target encoding          • Gate: block training if drift      │
+              │    (City, Currency,                                              │
+              │    Country Code, Cuisine)                                        │
+              │  • log1p transform          ⑤  FINAL VALIDATION                 │
+              │  • RobustScaler             ────────────────────                 │
+              │  • Save preprocessor.pkl    • Validate transformed .npy arrays  │
+              │    + mapping YAMLs          • Column count & type checks        │
+              │                                                                  │
+              │  ⑥  MODEL TRAINER                                               │
+              │  ────────────────                                                │
+              │  • Load validated .npy arrays                                   │
+              │  • Benchmark 6 regression models via RandomizedSearchCV         │
+              │  • Select best model by R² on test set                          │
+              │  • Track all runs in MLflow                                     │
+              │  • Save best_model.pkl → final_model/                           │
+              │                                                                  │
+              └──────────────────────────────────────────────────────────────────┘
+                                         │
+                    ┌────────────────────┼───────────────────────┐
+                    │                    │                        │
+         ┌──────────▼──────┐   ┌─────────▼────────┐   ┌─────────▼──────────┐
+         │  STREAMLIT APP  │   │ BATCH PREDICTION  │   │  MLFLOW TRACKING   │
+         │  (rating_app.py)│   │(batch_prediction  │   │  (localhost:5000)  │
+         │                 │   │     .py)          │   │                    │
+         │ Single predict  │   │ Fetch from MongoDB│   │  R², MAE, RMSE     │
+         │ Batch CSV upload│   │ Transform + infer │   │  per run           │
+         │                 │   │ Save output.csv   │   │                    │
+         └─────────────────┘   └───────────────────┘   └────────────────────┘
+```
+
+---
+
+## 🔬 Pipeline Deep-Dive
+
+### 1. Data Flow & Database Connection
+
+Before training, all datasets must be pushed to MongoDB Atlas using `scripts/push_data.py`. The script reads three CSVs and inserts each into its own collection inside the `Restaurant_DB` database.
+
+```
+MongoDB Atlas
+└── Restaurant_DB
+    ├── restaurant_details        ← main training data  (Dataset.csv)
+    ├── batch_collection          ← batch inference inputs  (batch_input.csv)
+    └── historical_collection     ← drift detection baseline  (base_df.csv)
+```
+
+**Connection mechanism** (`src/components/data_ingestion.py`):
+```python
+# Environment-driven — no credentials in code
+load_dotenv()
+mongodb_url = os.getenv("MONGO_DB_URL")
+client = MongoClient(mongodb_url, server_api=ServerApi('1'), tlsCAFile=certifi.where())
+```
+
+The `.env` file (populated from `.env.example`) supplies all secrets at runtime:
+
+```env
+MONGO_DB_URL="mongodb+srv://<user>:<pass>@cluster.mongodb.net/"
+DATABSE="Restaurant_DB"
+DATA_FILE_PATH="Restaurant_Data/Dataset.csv"
+DATA_COLLECTION_NAME="restaurant_details"
+BATCH_FILE_PATH="batch_prediction_data/batch_input.csv"
+BATCH_COLLECTION_NAME="batch_collection"
+HISTORICAL_DATA_FILE_PATH="historical_data/base_df.csv"
+HISTORICAL_COLLECTION_NAME="historical_collection"
+AUTHOR_NAME="your_name"
+AUTHOR_MAIL="your_email"
+```
+
+---
+
+### 2. Data Ingestion
+
+**Class:** `src/components/data_ingestion.py → DataIngestion`
+
+**What it does:**
+1. Fetches the training collection from MongoDB as a Pandas DataFrame.
+2. Exports the full dataset to `Artifacts/<timestamp>/data_ingestion/feature_store/RestaurantDataset.csv`.
+3. Performs a **stratified 80/20 train/test split** — stratified on binned rating buckets (`low`, `average`, `good`, `excellent`) to preserve class balance.
+4. Saves `train.csv` and `test.csv` to `Artifacts/<timestamp>/data_ingestion/ingested/`.
+
+**Output artifact:** `DataIngestionArtifact(trained_file_path, test_file_path)`
+
+---
+
+### 3. Primary Data Validation
+
+**Class:** `src/components/data_validation.py → PrimaryDataValidation`
+
+Validates that ingested CSVs match the schema defined in `data_schema/schema.yaml`:
+
+| Check | Details |
+|---|---|
+| Column count | Must match exactly 21 columns |
+| Numerical columns | 8 required numerical columns must be present with correct dtypes |
+| Categorical columns | 13 required categorical columns must be present |
+| Missing value threshold | Any column with > 10% null values triggers a validation failure |
+
+Passing files go to `primary_validated/`; failing files go to `primary_invalid/`. Training halts if validation fails.
+
+**Output artifact:** `PrimaryDataValidationArtifact(validation_status, valid_train_file_path, ...)`
+
+---
+
+### 4. Data Transformation
+
+**Class:** `src/components/data_transformation.py → DataTransformation`
+
+This is the most complex stage. Every transformation is fit on train data only and applied to both splits to prevent leakage.
+
+| Step | Transformation | Columns |
+|---|---|---|
+| 1 | Drop irrelevant columns | `Rating color`, `Rating text`, `Locality`, `Address`, `Longitude`, `Latitude`, `Restaurant Name`, `Switch to order menu`, `Restaurant ID` |
+| 2 | Drop "Not Rated" rows | Rows with `Aggregate rating == 0.0` |
+| 3 | Drop null rows | Any remaining rows with missing values |
+| 4 | Binary encoding | `Has Table booking`, `Has Online delivery`, `Is delivering now` → `Yes=1`, `No=0` |
+| 5 | Feature engineering | `Cuisine_Count` = number of distinct cuisines per restaurant |
+| 6 | Cuisine avg rating | Explode multi-cuisine entries → compute per-cuisine mean rating → merge back as `Cuisine_avg_rating` |
+| 7 | Target (mean) encoding | `City`, `Currency`, `Country Code` → replaced with their mean target rating |
+| 8 | `log1p` transform | `Average Cost for two`, `Votes` — corrects severe right-skew |
+| 9 | RobustScaler | `Longitude`, `Latitude`, `Average Cost for two`, `Votes` — median+IQR, immune to extreme outliers |
+
+**Serialized artifacts saved to `final_model/`:**
+
+| File | Contents |
+|---|---|
+| `preprocessor.pkl` | Fitted `sklearn` ColumnTransformer (RobustScaler) |
+| `binary_mapping.yaml` | `Yes/No` → `1/0` mapping |
+| `City_mapping.yaml` | City name → mean rating |
+| `Country Code_mapping.yaml` | Country code → mean rating |
+| `Currency_mapping.yaml` | Currency → mean rating |
+| `cuisine_mapping.yaml` | Cuisine name → mean rating |
+
+Transformed arrays are saved as `.npy` files in `data_transformation/transformed/`.
+
+**Output artifact:** `DataTransformationArtifact(transformed_object_file_path, transformed_train_file_path, transformed_test_file_path)`
+
+---
+
+### 5. Drift Validation
+
+**Class:** `src/components/data_validation.py → DriftValidation`
+
+Compares the freshly transformed training data against the historical baseline (`historical_data/base_df.csv`) using the **Kolmogorov-Smirnov two-sample test** column-by-column.
+
+- **p-value threshold:** `0.05` (configurable via `DATA_VALIDATION_DRIFT_THRESHOLD`)
+- If `p > 0.05` for all columns → no significant drift detected → pipeline proceeds
+- If any column shows drift → a `drift_report.yaml` is generated and training is **blocked**
+
+The drift report is saved to `Artifacts/<timestamp>/data_validation/drift_report/report.yaml`.
+
+---
+
+### 6. Final Data Validation
+
+**Class:** `src/components/data_validation.py → FinalDataValidation`
+
+Post-transformation integrity check on the `.npy` arrays before they are handed to the model trainer. Validates that the transformed arrays have the expected shape and that no NaN/Inf values remain.
+
+**Output artifact:** `FinalDataValidationArtifact(validation_status, valid_train_file_path, valid_test_file_path, ...)`
+
+---
+
+### 7. Model Training & Selection
+
+**Class:** `src/components/model_trainer.py → ModelTrainer`
+
+All registered models are evaluated via `RandomizedSearchCV` (benchmarking phase), then the best model is re-trained with its optimal hyperparameters on the full training set.
+
+**Models benchmarked:**
 
 | Model | Notes |
 |---|---|
-| Linear Regression | Baseline — cannot capture non-linear feature interactions |
-| Lasso / Ridge | Regularised linear; marginal improvement over baseline |
-| Random Forest Regressor | Strong ensemble baseline; shortlisted for tuning |
+| Linear Regression | Baseline |
+| Lasso / Ridge | Regularised linear |
+| Random Forest Regressor | Shortlisted for tuning |
 | Gradient Boosting Regressor | Shortlisted for tuning |
 | **XGBoost Regressor** | ✅ **Final selected model** |
-| AdaBoost Regressor | Benchmarked; underperformed boosting alternatives |
+| AdaBoost Regressor | Benchmarked; underperformed |
 
-### Final Model — XGBoost Regressor
-
+**Final XGBoost configuration:**
 ```python
 XGBRegressor(
     n_estimators=1000,
@@ -266,76 +400,303 @@ XGBRegressor(
 )
 ```
 
-XGBoost was selected for its ability to handle the mix of target-encoded categoricals and continuous features, its robustness to residual skew in the data, and its consistently superior performance across MAE, RMSE, and R² metrics during cross-validated evaluation.
+**Selection criterion:** Highest R² on the held-out test set, subject to a train/test R² difference of ≤ 0.05 (overfitting/underfitting threshold).
+
+Every model run is tracked via **MLflow** (metrics: `r2_score`, `mean_absolute_error`, `root_mean_squared_error`; artifact: serialized model).
+
+**Output:**
+- `Artifacts/<timestamp>/model_trainer/trained_model/best_model.pkl`
+- `Artifacts/<timestamp>/model_trainer/model_evaluation/all_model_performance_report.yaml`
+- `final_model/best_model.pkl` (stable production copy)
+
+**Output artifact:** `ModelTrainerArtifact(trained_model_file_path, train_metric_artifact, test_metric_artifact)`
+
+---
+
+### 8. Runtime Artifacts Generated
+
+Running `python scripts/run_training.py` creates two directory trees:
+
+**`Artifacts/` — per-run, timestamped:**
+```
+Artifacts/
+└── 04_18_2026_10_30_00/
+    ├── data_ingestion/
+    │   ├── feature_store/RestaurantDataset.csv
+    │   └── ingested/
+    │       ├── train.csv
+    │       └── test.csv
+    ├── data_validation/
+    │   ├── primary_validated/
+    │   │   ├── train.csv
+    │   │   └── test.csv
+    │   ├── drift_report/report.yaml
+    │   └── final_validated/
+    │       ├── train.npy
+    │       └── test.npy
+    ├── data_transformation/
+    │   ├── transformed/
+    │   │   ├── train.npy
+    │   │   └── test.npy
+    │   └── transformed_object/preprocessing.pkl
+    └── model_trainer/
+        ├── trained_model/best_model.pkl
+        └── model_evaluation/all_model_performance_report.yaml
+```
+
+**`final_model/` — stable production artifacts (overwritten each run):**
+```
+final_model/
+├── best_model.pkl              # Serialized XGBoost model
+├── preprocessor.pkl            # Fitted RobustScaler ColumnTransformer
+├── binary_mapping.yaml         # Yes/No → 1/0 encoding map
+├── City_mapping.yaml           # City → mean rating encoding
+├── Country Code_mapping.yaml   # Country → mean rating encoding
+├── Currency_mapping.yaml       # Currency → mean rating encoding
+└── cuisine_mapping.yaml        # Cuisine → mean rating encoding
+```
+
+The app (`backend.py`) reads directly from `final_model/` at inference time — no access to `Artifacts/` is needed for serving predictions.
+
+---
+
+## 📈 Exploratory Data Analysis
+
+Four sequential notebooks in `Notebooks/EDA/` cover the full analytical journey. Notebook 01 produces `processed_data/Dataset_filtered.csv` which notebooks 02–04 consume.
+
+### Notebook 01 — Data Exploration & Preprocessing
+
+Initial structural inspection covering missing values, duplicates, data types, and target distribution.
+
+**Missing Value Analysis:**
+
+![Missing Value Analysis](Notebooks/reports/missing_value_analysis.png)
+
+The dataset is remarkably clean. Only `Cuisines` contains missing values (9 rows, 0.09%) — these were dropped since cuisine imputation would introduce arbitrary noise.
+
+**Target Variable Distribution:**
+
+![Rating Histogram](Notebooks/reports/rating_histogram.png)
+
+22.5% of restaurants carry a rating of 0.0 ("Not rated") and were excluded from modelling. Among rated restaurants, the distribution centres around 3.0–3.6 ("Average" band), with very few restaurants scoring above 4.5.
+
+**Univariate Analysis — Categorical Features:**
+
+![Univariate Analysis](Notebooks/reports/Univariate_analysis_categorical_features.png)
+
+India (Country Code 1) accounts for ~89% of all restaurants — a dominant geographic bias. `Is delivering now` and `Switch to order menu` are near-zero across the dataset and carry no useful signal.
+
+---
+
+### Notebook 02 — Table Booking, Online Delivery & Price Analysis
+
+**Key charts:**
+
+| Chart | Key Insight |
+|---|---|
+| ![Table Booking](Notebooks/reports/Avg_Rating_With_vs_Without_Table_Booking.png) | Restaurants with table booking average **3.59** vs **3.41** — a 0.18-point premium consistent across the full dataset. |
+| ![Online Delivery by Price](Notebooks/reports/Online_Delivery_Availability_by_Price_Range.png) | Online delivery peaks in the **Mid tier (41.3%)** and is nearly absent in Luxury (9.0%). |
+| ![Price Range Rating](Notebooks/reports/Avg_Rating_for_different_price_range.png) | A clear monotonic relationship: Budget 3.24 → Mid 3.38 → Premium 3.78 → Luxury 3.89. The largest jump occurs between Mid and Premium (+0.40). |
+
+---
+
+### Notebook 03 — Customer Preference & Cuisine Analysis
+
+**Key charts:**
+
+| Chart | Key Insight |
+|---|---|
+| ![Top 10 Rated](Notebooks/reports/Top_10_Cuisines_by_Average_Rating.png) | **Brazilian cuisine leads at 4.34** average rating. All top-10 cuisines exceed 4.0 — none are high-volume cuisines. |
+| ![Top 10 by Votes](Notebooks/reports/Top_10_Most_Popular_Cuisines_by_Votes.png) | **North Indian accumulates 595,981 votes** — nearly double the second place. Volume and quality are largely decoupled. |
+| ![Quality vs Scale](Notebooks/reports/cuisine_analysis_charts.png) | The bubble plot clearly visualises the quality vs. popularity tradeoff: only 11 of 145 cuisine types maintain a 4.0+ average with sufficient representation. |
+
+---
+
+### Notebook 04 — Feature Engineering & Regression Modelling
+
+**Distribution of Numerical Features:**
+
+![Distribution Analysis](Notebooks/reports/Distribution_Analysis_of_numerical_features.png)
+
+`Average Cost for two` and `Votes` are severely right-skewed — confirming the need for `log1p` transformation.
+
+**Inter-Feature Correlation Heatmap:**
+
+![Inter-correlation](Notebooks/reports/Inter-correlation_of_input_features.png)
+
+`Country Code` ↔ `Currency` shows r=0.99 (near-perfect, effectively redundant). `Price range` ↔ `Has Table booking` at r=0.51 reinforces table booking as a quality proxy.
+
+**Feature Correlation with Target:**
+
+![Correlation with Target](Notebooks/reports/correlation_with_target.png)
+
+`Price range` (r=0.44) and the engineered `Cuisine_avg_rating` (r=0.42) are the two strongest predictors. City-level target encoding ranks third at r=0.41.
+
+**Location vs Rating:**
+
+![Location vs Rating](Notebooks/reports/location_vs_rating.png)
+
+London tops city-level ratings at 4.54, followed by Tampa Bay (4.41) and Bangalore (4.38). Cities were filtered to ≥20 restaurants to ensure statistically reliable averages.
+
+---
+
+## ⚙️ Feature Engineering
+
+| Transformation | Applied To | Reason |
+|---|---|---|
+| Row drop | `Cuisines` nulls (9 rows) | Too few to impute reliably |
+| Stratified train/test split (80/20) | All rows | Preserves rating bucket distribution |
+| Binary encoding (`Yes→1`, `No→0`) | `Has Table booking`, `Has Online delivery`, `Is delivering now` | Nominal binary columns |
+| Target (mean) encoding | `City`, `Currency`, `Country Code` | High-cardinality; preserves rating signal without exploding dimensionality |
+| Cuisine avg rating feature | `Cuisines` column (exploded) | Custom feature — per-cuisine mean rating; r=0.42 with target |
+| `Cuisine_Count` feature | `Cuisines` column | Number of cuisines served — captures menu breadth |
+| `log1p` transform | `Average Cost for two`, `Votes` | Corrects severe right-skew and dampens outlier influence |
+| RobustScaler | `Longitude`, `Latitude`, `Average Cost for two`, `Votes` | Median+IQR scaling; immune to extreme outliers |
+
+---
+
+## 📉 Model Results
+
+| Model | Train R² | Test R² | MAE | RMSE |
+|---|---|---|---|---|
+| Linear Regression | ~0.52 | ~0.51 | — | — |
+| Lasso / Ridge | ~0.53 | ~0.52 | — | — |
+| Random Forest | ~0.80 | ~0.74 | — | — |
+| Gradient Boosting | ~0.79 | ~0.75 | — | — |
+| **XGBoost** | **~0.84** | **~0.78** | **~0.22** | **~0.31** |
+| AdaBoost | ~0.60 | ~0.59 | — | — |
+
+> Exact metrics from the most recent run are saved to `Artifacts/<timestamp>/model_trainer/model_evaluation/all_model_performance_report.yaml`.
+
+XGBoost was selected for its ability to handle the mix of target-encoded categoricals and continuous features, robustness to residual skew, and consistently superior performance across all three regression metrics.
 
 ---
 
 ## 🛠️ Tech Stack
 
-| Category | Libraries |
+| Category | Libraries / Tools |
 |---|---|
+| Language | Python 3.13 |
 | Data manipulation | `pandas`, `numpy` |
 | Visualisation | `matplotlib`, `seaborn`, `plotly` |
 | Machine learning | `scikit-learn`, `xgboost` |
-| Notebook environment | `Jupyter Notebook` |
-| Language | Python 3.13 |
+| Experiment tracking | `mlflow` |
+| Database | `pymongo`, `MongoDB Atlas`, `certifi` |
+| App framework | `streamlit` |
+| Config management | `python-dotenv`, `pyyaml` |
+| Statistical testing | `scipy` (KS test) |
+| Packaging | `setuptools` |
 
 ---
 
-## 💡 Key Takeaways
+## ⚙️ Setup & Installation
 
-- **Price range is the strongest predictor** of restaurant rating (r = 0.44) — a clear, monotonic relationship exists where each tier up corresponds to a meaningfully higher average rating.
-- **Cuisine type quality and popularity are largely decoupled.** Brazilian leads on average rating (4.34) with ~20 restaurants; North Indian leads on votes (596K) across 3,960 restaurants. Being popular does not mean being highly rated.
-- **Target encoding for cuisines** produced `Cuisine_avg_rating` (r = 0.42 with target) — the second strongest predictor — demonstrating that thoughtful feature engineering outperforms naive one-hot encoding for high-cardinality categoricals.
-- **Table booking is a consistent quality signal.** Restaurants accepting reservations average 0.18 points higher than those that don't, likely acting as a proxy for overall establishment quality rather than the feature itself causing better ratings.
-- **Geography has strong independent predictive power.** City-level encoding ranks third in feature-target correlation (r = 0.41), confirming that location effects go beyond just price tier and cuisine.
-- **XGBoost** with a disciplined feature engineering pipeline substantially outperformed all linear models, reflecting the non-linear, interaction-heavy nature of the rating prediction problem.
+### Prerequisites
+- Python 3.13+
+- A MongoDB Atlas account (free tier is sufficient)
+- Conda or `venv`
 
----
-## ⚙️ Setup & Usage
-
+### 1. Clone the Repository
 ```bash
-# Initialize your credentials in .env file -> kindly refer *.env.example**
-
-# Create Conda Environment (recommended)
-conda create -p venv python==3.13 -y  # virtual environment creation with python version 3.12
-conda activate .\venv                 # activate conda environment
-conda deactivate                      # to deactivate conda environment
-# OR
-# Create python environment
-python -m venv venv                   # virtual environment creation with default python version installed in the system
-venv\Scripts\activate                 # activate python environment
-deactivate                            # to deactivate python environment
-
-# Install dependencies
-pip install -r requirements.txt
+git clone https://github.com/<your-username>/restaurant-rating.git
+cd restaurant-rating
 ```
 
-# Launch notebooks
-jupyter notebook Notebooks/EDA/
-> **Go through notebooks in order: `01 → 02 → 03 → 04`**
-> Notebooks 02–04 loaded from `Notebooks/processed_data/Dataset_filtered.csv` which is produced by Notebook 01.
-
+### 2. Create & Activate Environment
 ```bash
-# To get a dashboard overview of the dataset run:
+# Option A — Conda (recommended)
+conda create -p venv python==3.13 -y
+conda activate ./venv
+
+# Option B — venv
+python -m venv venv
+venv\Scripts\activate        # Windows
+source venv/bin/activate     # macOS/Linux
+```
+
+### 3. Install Dependencies
+```bash
+pip install -r requirements.txt
+pip install -e .   # installs the src package in editable mode
+```
+
+### 4. Configure Environment Variables
+```bash
+cp .env.example .env
+# Edit .env with your MongoDB connection string, collection names, and file paths
+```
+
+---
+
+## 🚀 Usage Guide
+
+### Step 1 — Verify Database Connection
+```bash
+python scripts/test_mongodb_connection.py
+# Expected: "Pinged your deployment. You successfully connected to MongoDB!"
+```
+
+### Step 2 — Push Data to MongoDB
+```bash
+python scripts/push_data.py
+# Uploads: Dataset.csv, batch_input.csv, base_df.csv to their respective collections
+```
+
+### Step 3 — Run the Training Pipeline
+```bash
+python scripts/run_training.py
+# Runs all 6 pipeline stages: Ingestion → Validation → Transform → Drift → Final Validation → Train
+# Saves final_model/ artifacts and timestamped Artifacts/ directory
+```
+
+### Step 4 — Launch the Prediction App
+```bash
+streamlit run app/rating_app.py
+```
+
+### Step 5 — Run Batch Predictions (optional)
+```bash
+python scripts/run_inference.py
+# Fetches batch data from MongoDB, runs inference, saves output.csv
+```
+
+### Step 6 — EDA Dashboard (optional)
+```bash
 streamlit run Notebooks/EDA/rating_dashboard.py
 ```
 
+### Step 7 — MLflow Experiment Tracking (optional)
 ```bash
-# To check database connection
-python scripts/test_mongodb_connection.py
-
-# To push Data into MongoDB
-python scripts/push_data.py
-
-# To train model
-python scripts/run_training.py
-
-# To run inference
-python scripts/run_inference.py
-
-# To run app
-streamlit run app.py
+mlflow ui
+# Open http://localhost:5000 to browse all training runs
 ```
 
+### Running Notebooks in Order
+```bash
+jupyter notebook Notebooks/EDA/
+```
+> Run notebooks in order: `01_EDA.ipynb` → `02_EDA.ipynb` → `03_EDA.ipynb` → `04_regression_analysis.ipynb`
+>
+> Notebooks 02–04 depend on `Notebooks/processed_data/Dataset_filtered.csv` produced by Notebook 01.
+
 ---
+
+## 💡 Key Findings
+
+- **Price range is the strongest predictor** (r = 0.44). A clear monotonic relationship exists across all four tiers — each step up corresponds to a meaningfully higher average rating, with the sharpest jump from Mid → Premium (+0.40 points).
+
+- **Target-encoded `Cuisine_avg_rating` (r = 0.42)** is the second strongest predictor, emerging from feature engineering rather than raw data. This demonstrates that thoughtful encoding outperforms naive one-hot encoding for high-cardinality categoricals.
+
+- **Cuisine quality and popularity are largely decoupled.** Brazilian cuisine leads on average rating (4.34) with ~20 restaurants; North Indian leads on votes (596K) across 3,960 restaurants. Being popular does not mean being highly rated.
+
+- **Table booking is a consistent quality signal.** Restaurants accepting reservations average 0.18 points higher — acting as a proxy for overall establishment quality rather than the feature itself driving better ratings.
+
+- **Geography has strong independent predictive power.** City-level encoding ranks third (r = 0.41), confirming that location effects go beyond price tier and cuisine type.
+
+- **XGBoost** substantially outperformed all linear models across MAE, RMSE, and R², reflecting the non-linear, interaction-heavy nature of the rating prediction problem.
+
+---
+
+<div align="center">
+  <sub>Built with Python 3.13 · scikit-learn · XGBoost · MongoDB · MLflow · Streamlit</sub>
+</div>
