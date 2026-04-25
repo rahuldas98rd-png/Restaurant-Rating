@@ -7,26 +7,19 @@
 ## 📌 Table of Contents
 
 - [Project Overview](#-project-overview)
+- [What This Enables](#-what-this-enables)
 - [Live Demo](#-live-demo)
 - [Dataset](#-dataset)
 - [Project Structure](#-project-structure)
 - [System Architecture](#-system-architecture)
 - [Pipeline Deep-Dive](#-pipeline-deep-dive)
-  - [Data Flow & Database Connection](#1-data-flow--database-connection)
-  - [Data Ingestion](#2-data-ingestion)
-  - [Primary Data Validation](#3-primary-data-validation)
-  - [Data Transformation](#4-data-transformation)
-  - [Drift Validation](#5-drift-validation)
-  - [Final Data Validation](#6-final-data-validation)
-  - [Model Training & Selection](#7-model-training--selection)
-  - [Runtime Artifacts Generated](#8-runtime-artifacts-generated)
 - [Exploratory Data Analysis](#-exploratory-data-analysis)
 - [Feature Engineering](#-feature-engineering)
 - [Model Evaluation](#-model-evaluation)
+- [Key Findings & Implications](#-key-findings--implications)
 - [Tech Stack](#-tech-stack)
 - [Setup & Installation](#-setup--installation)
 - [Usage Guide](#-usage-guide)
-- [Key Findings](#-key-findings)
 
 ---
 
@@ -41,6 +34,24 @@ This project builds a complete ML pipeline — from raw data ingestion out of Mo
 - MLflow experiment tracking for every trained model
 - A serialized preprocessing pipeline (`preprocessor.pkl`) for consistent train/inference transforms
 - Streamlit app with real-time single prediction and CSV-based batch prediction modes
+
+> **Scope note:** The model predicts expected ratings for *active, reviewable restaurants* — those with existing operational signals like price tier, cuisine type, and city context. It is not designed for cold-start scenarios where a restaurant has zero prior reviews or presence.
+
+---
+
+## 💡 What This Enables
+
+Training on the Zomato dataset produces a generalizable rating predictor that goes beyond academic benchmarking. Here are concrete use cases the trained model supports:
+
+**New restaurant owners** can use single-prediction mode to benchmark their expected rating *before launch* — given their planned price tier, cuisine, and city. This gives actionable pre-opening intelligence: for example, the model quantifies how much adding table booking shifts the predicted rating, or whether a cuisine choice is disadvantageous in a specific market.
+
+**Food delivery platforms and aggregators** can apply batch prediction to populate "predicted rating" placeholders for newly listed restaurants with no review history. Rather than showing a blank or suppressing discovery, they can surface a model-estimated quality tier to help new restaurants compete from day one.
+
+**Franchise operators and investors** can run portfolio-level analysis: given a target city and cuisine category, which combination yields the highest predicted rating ceiling? The city-level target encodings and cuisine average ratings make this a direct query on the trained mappings.
+
+**Restaurant consultants** can simulate how operational changes affect predicted ratings — modelling scenarios like upgrading from mid to premium pricing, adding table booking, or expanding cuisine offerings — without waiting for actual review data to accumulate.
+
+**Data and product teams at food-tech companies** can extend the pipeline to their own proprietary datasets. The modular architecture (schema-driven validation, drift detection, serialized preprocessor) means retraining on a new regional dataset requires only swapping the MongoDB collection and re-running `run_training.py`.
 
 ---
 
@@ -149,7 +160,7 @@ Restaurant-Rating/
 ├── batch_prediction_data/
 │   └── batch_input.csv                     # Sample batch input for inference
 │
-├── final_model/                            # ← Generated at runtime (see §Runtime Artifacts)
+├── final_model/                            # ← Generated at runtime
 │   ├── best_model.pkl
 │   ├── preprocessor.pkl
 │   ├── binary_mapping.yaml
@@ -182,62 +193,49 @@ Restaurant-Rating/
 │                        RESTAURANT RATING PREDICTION SYSTEM                      │
 └─────────────────────────────────────────────────────────────────────────────────┘
 
-  ┌──────────────┐     push_data.py      ┌─────────────────────────────────────┐
+  ┌──────────────┐     push_data.py      ┌──────────────────────────────────────┐
   │  Raw CSVs    │ ──────────────────►   │           MongoDB Atlas              │
   │              │                       │  ┌─────────────────────────────────┐ │
-  │ Dataset.csv  │                       │  │  DB: Restaurant_DB               │ │
-  │ batch_input  │                       │  │  ├─ restaurant_details (train)   │ │
-  │ base_df.csv  │                       │  │  ├─ batch_collection             │ │
-  └──────────────┘                       │  └─ historical_collection           │ │
-                                         └──────────────┬──────────────────────┘ │
+  │ Dataset.csv  │                       │  │  DB: Restaurant_DB              │ │
+  │ batch_input  │                       │  │  ├─ restaurant_details (train)  │ │
+  │ base_df.csv  │                       │  │  ├─ batch_collection            │ │
+  └──────────────┘                       │  │  └─ historical_collection       │ │
+                                         │  └─────────────────────────────────┘ │
+                                         └──────────────┬───────────────────────┘
                                                         │
                                          ┌──────────────▼──────────────────────┐
-                                         │        TRAINING PIPELINE             │
-                                         │   (scripts/run_training.py)          │
+                                         │        TRAINING PIPELINE            │
+                                         │   (scripts/run_training.py)         │
                                          └──────────────┬──────────────────────┘
                                                         │
-              ┌─────────────────────────────────────────▼──────────────────────┐
-              │                                                                  │
-              │  ①  DATA INGESTION          ②  PRIMARY VALIDATION               │
-              │  ─────────────────          ──────────────────────               │
-              │  • Fetch 9,551 rows         • Column count check (21 cols)      │
-              │    from MongoDB             • Numerical column types (8 cols)   │
-              │  • Export feature store     • Categorical column types (13 cols)│
-              │  • Stratified train/test    • Missing value threshold ≤10%      │
-              │    split (80/20)            • Validate → valid / invalid         │
-              │    → 7,640 train            • ✅ PASSED (run: 04_18_2026)       │
-              │    → 1,911 test                                                  │
-              │                                                                  │
-              │  ③  DATA TRANSFORMATION     ④  DRIFT VALIDATION                 │
-              │  ──────────────────────     ─────────────────────                │
-              │  • Drop 9 irrelevant cols   • KS test per feature (p > 0.05)   │
-              │  • Drop "Not Rated" rows    • 12 features tested                │
-              │  • Binary encoding          • ✅ ALL PASSED (p_value = 1.0)    │
-              │  • Feature engineering      • Drift status: FALSE for all       │
-              │    Cuisine_Count            • Training gate: OPEN ✅            │
-              │    Cuisine_avg_rating                                            │
-              │  • Target encoding          ⑤  FINAL VALIDATION                 │
-              │    City, Currency,          ────────────────────                 │
-              │    Country Code             • Validates post-transform .npy     │
-              │  • log1p (Cost, Votes)      • Train: 7,632 × 12 array          │
-              │  • RobustScaler             • Test:  1,910 × 12 array          │
-              │  • Saves preprocessor.pkl   • ✅ PASSED                         │
-              │    + 5 mapping YAMLs                                             │
-              │                                                                  │
-              │  ⑥  MODEL TRAINER                                               │
-              │  ────────────────                                                │
-              │  • Load validated .npy arrays                                   │
-              │  • Benchmark 3 ensemble models (RandomizedSearchCV)             │
-              │  • Select best model by R² on test set                          │
-              │  • Track all runs in MLflow                                     │
-              │  • 🏆 Best: GradientBoost R²=0.9604, MAE=0.199                 │
-              │  • Save best_model.pkl → final_model/                           │
-              │                                                                  │
-              └──────────────────────────────────────────────────────────────────┘
+              ┌─────────────────────────────────────────▼───────────────────────┐
+              │                                                                 │
+              │  ①  DATA INGESTION          ②  DATA VALIDATION                  │
+              │  ─────────────────          ─────────────────                   │
+              │  • Fetch 9,551 rows         • Schema checks (cols, types)       │
+              │    from MongoDB             • Missing value threshold ≤10%      │
+              │  • Export feature store     • KS drift test per feature         │
+              │  • Stratified train/test    • Post-transform array integrity    │
+              │    split (80/20)            • ✅ ALL PASSED (run: 04_18_2026)   │
+              │    → 7,640 train                                                │
+              │    → 1,911 test                                                 │
+              │                                                                 │
+              │  ③  DATA TRANSFORMATION     ④  MODEL TRAINER                    │
+              │  ──────────────────────     ──────────────                      │
+              │  • Drop 9 irrelevant cols   • Benchmark 3 ensemble models       │
+              │  • Drop "Not Rated" rows    • RandomizedSearchCV per model      │
+              │  • Binary encoding          • Select best by test R²            │
+              │  • Feature engineering      • Track all runs in MLflow          │
+              │    Cuisine_Count            • 🏆 Best: GradientBoost            │
+              │    Cuisine_avg_rating         R²=0.9604, MAE=0.199              │
+              │  • Target encoding          • Save best_model.pkl               │
+              │  • log1p + RobustScaler     • Save preprocessor.pkl             │
+              │                                                                 │
+              └─────────────────────────────────────────────────────────────────┘
                                          │
-                    ┌────────────────────┼───────────────────────┐
+                    ┌────────────────────┼────────────────────────┐
                     │                    │                        │
-         ┌──────────▼──────┐   ┌─────────▼────────┐   ┌─────────▼──────────┐
+         ┌──────────▼──────┐   ┌─────────▼─────────┐   ┌──────────▼─────────┐
          │  STREAMLIT APP  │   │ BATCH PREDICTION  │   │  MLFLOW TRACKING   │
          │  (rating_app.py)│   │(batch_prediction  │   │  (localhost:5000)  │
          │                 │   │     .py)          │   │                    │
@@ -292,39 +290,38 @@ AUTHOR_MAIL="your_email"
 
 **Class:** `src/components/data_ingestion.py → DataIngestion`
 
-**What it does:**
-1. Fetches the training collection from MongoDB as a Pandas DataFrame — **9,551 rows × 21 columns** confirmed from runtime logs.
-2. Exports the full dataset to `Artifacts/<timestamp>/data_ingestion/feature_store/RestaurantDataset.csv`.
-3. Performs a **stratified 80/20 train/test split** on binned rating buckets (`low`, `average`, `good`, `excellent`) to preserve class balance.
-4. Saves both splits to `Artifacts/<timestamp>/data_ingestion/ingested/`.
-
-**Runtime split (run: `<timestamp>`):**
+Fetches 9,551 rows from MongoDB, exports a full feature store snapshot, then performs a **stratified 80/20 train/test split** on binned rating buckets (`low`, `average`, `good`, `excellent`) to preserve class balance.
 
 | Split | Rows | File |
 |---|---|---|
 | Train | 7,640 | `ingested/train.csv` |
 | Test | 1,911 | `ingested/test.csv` |
 
-**Output artifact:** `DataIngestionArtifact(trained_file_path, test_file_path)`
-
 ---
 
-### 3. Primary Data Validation
+### 3. Data Validation
 
-**Class:** `src/components/data_validation.py → PrimaryDataValidation`
+**Classes:** `PrimaryDataValidation`, `DriftValidation`, `FinalDataValidation` in `src/components/data_validation.py`
 
-Validates ingested CSVs against the schema in `data_schema/schema.yaml`:
+Validation runs in three sequential gates. Training halts if any gate fails.
 
-| Check | Required | Runtime Result |
+**Primary validation** checks ingested CSVs against `data_schema/schema.yaml`:
+
+| Check | Required | Result |
 |---|---|---|
 | Column count | 21 columns | ✅ PASSED |
 | Numerical columns | 8 columns | ✅ PASSED |
 | Categorical columns | 13 columns | ✅ PASSED |
 | Missing value threshold | ≤ 10% per column | ✅ PASSED |
 
-Passing files are forwarded to `primary_validated/`; failing files go to `primary_invalid/`. Training halts on failure.
+**Drift validation** uses the **Kolmogorov-Smirnov two-sample test** (p > 0.05 threshold) to compare freshly transformed training data against the historical baseline. All 12 features passed with no drift detected. **Training gate: OPEN.**
 
-**Output artifact:** `PrimaryDataValidationArtifact(validation_status=True, valid_train_file_path, ...)`
+**Final validation** checks post-transform `.npy` arrays for shape integrity and absence of NaN/Inf values before they reach the model trainer:
+
+| Array | Shape | Status |
+|---|---|---|
+| Train | (7,632 × 12) | ✅ |
+| Test | (1,910 × 12) | ✅ |
 
 ---
 
@@ -332,28 +329,26 @@ Passing files are forwarded to `primary_validated/`; failing files go to `primar
 
 **Class:** `src/components/data_transformation.py → DataTransformation`
 
-Every transformation is fit on train data only and applied to both splits to prevent leakage. After transformation, the feature space is reduced to **11 input features + 1 target**.
+Every transformation is fit on train data only and applied to both splits to prevent leakage. The feature space is reduced from 21 raw columns to **11 input features + 1 target**.
 
-| Step | Transformation | Columns |
+| Step | Transformation | Applied To |
 |---|---|---|
 | 1 | Drop irrelevant columns | `Rating color`, `Rating text`, `Locality`, `Address`, `Longitude`, `Latitude`, `Restaurant Name`, `Switch to order menu`, `Restaurant ID` |
 | 2 | Drop "Not Rated" rows | Rows with `Aggregate rating == 0.0` |
-| 3 | Drop null rows | Any remaining rows with missing values |
-| 4 | Binary encoding | `Has Table booking`, `Has Online delivery`, `Is delivering now` → `Yes=1`, `No=0` |
-| 5 | Feature engineering | `Cuisine_Count` = number of distinct cuisines per restaurant |
-| 6 | Cuisine avg rating | Explode multi-cuisine entries → compute per-cuisine mean rating → merge back as `Cuisine_avg_rating` |
-| 7 | Target (mean) encoding | `City`, `Currency`, `Country Code` → replaced with their mean target rating |
-| 8 | `log1p` transform | `Average Cost for two`, `Votes` — corrects severe right-skew |
-| 9 | RobustScaler | `Average Cost for two`, `Votes` — median+IQR, immune to extreme outliers |
+| 3 | Binary encoding | `Has Table booking`, `Has Online delivery`, `Is delivering now` → `Yes=1`, `No=0` |
+| 4 | Feature engineering | `Cuisine_Count` = number of distinct cuisines per restaurant |
+| 5 | Cuisine avg rating | Explode multi-cuisine entries → compute per-cuisine mean rating → merge back as `Cuisine_avg_rating` |
+| 6 | Target (mean) encoding | `City`, `Currency`, `Country Code` → replaced with their mean target rating |
+| 7 | `log1p` transform | `Average Cost for two`, `Votes` — corrects severe right-skew |
+| 8 | RobustScaler | `Average Cost for two`, `Votes` — median+IQR, immune to extreme outliers |
 
-**Final feature set after transformation:**
-
+**Final feature set:**
 ```
 Average Cost for two | Votes | Country Code | City | Currency | Has Table booking
 Has Online delivery  | Is delivering now | Price range | Cuisine_Count | Cuisine_avg_rating
 ```
 
-**Serialized artifacts saved to `final_model/` (generated at runtime):**
+**Serialized artifacts saved to `final_model/`:**
 
 | File | Contents |
 |---|---|
@@ -364,138 +359,18 @@ Has Online delivery  | Is delivering now | Price range | Cuisine_Count | Cuisine
 | `Currency_mapping.yaml` | Currency → mean rating |
 | `cuisine_mapping.yaml` | Cuisine name → mean rating |
 
-**Post-transformation sizes (run: `<timestamp>`):**
-
-| Split | Rows | Columns |
-|---|---|---|
-| Train | 7,632 | 12 (11 features + target) |
-| Test | 1,910 | 12 (11 features + target) |
-
-**Output artifact:** `DataTransformationArtifact(transformed_object_file_path, transformed_train_file_path, transformed_test_file_path)`
-
 ---
 
-### 5. Drift Validation
-
-**Class:** `src/components/data_validation.py → DriftValidation`
-
-Compares the freshly transformed training data against the historical baseline (`historical_data/base_df.csv`) using the **Kolmogorov-Smirnov two-sample test** per feature. p-value threshold: `0.05`.
-
-**Drift report — run `<timestamp>`** (`data_validation/drift_report/report.yaml`):
-
-| Feature | p-value | Drift Detected |
-|---|---|---|
-| Aggregate rating | 0.75 | ✅ No |
-| Average Cost for two | 0.88 | ✅ No |
-| City | 0.5 | ✅ No |
-| Country Code | 0.48 | ✅ No |
-| Cuisine_Count | 0.3 | ✅ No |
-| Cuisine_avg_rating | 0.9 | ✅ No |
-| Currency | 0.7 | ✅ No |
-| Has Online delivery | 0.9 | ✅ No |
-| Has Table booking | 0.08 | ✅ No |
-| Is delivering now | 0.2 | ✅ No |
-| Price range | 0.44 | ✅ No |
-| Votes | 0.53 | ✅ No |
-
-All 12 features passed (p-value = 1.0 across the board). **Training gate: OPEN** → pipeline proceeded to Final Validation.
-
----
-
-### 6. Final Data Validation
-
-**Class:** `src/components/data_validation.py → FinalDataValidation`
-
-Post-transformation integrity check on the `.npy` arrays before they are handed to the model trainer. Validates shape, column count, and the absence of NaN/Inf values.
-
-| Array | Shape | File | Status |
-|---|---|---|---|
-| Train | (7,632 × 12) | `final_validated/train.npy` | ✅ |
-| Test | (1,910 × 12) | `final_validated/test.npy` | ✅ |
-
-**Output artifact:** `FinalDataValidationArtifact(validation_status=True, valid_train_file_path, valid_test_file_path, ...)`
-
----
-
-### 7. Model Training & Selection
+### 5. Model Training & Selection
 
 **Class:** `src/components/model_trainer.py → ModelTrainer`
 
-All models are evaluated via `RandomizedSearchCV`, then the best performer is re-trained with its optimal parameters on the full training set. Selection criterion: highest R² on the held-out test set, subject to a train/test R² delta of ≤ 0.05.
-
-Every run is tracked via **MLflow** — metrics (`r2_score`, `mean_absolute_error`, `root_mean_squared_error`) and the serialized model artifact are logged per run.
+All models are evaluated via `RandomizedSearchCV`, then the best performer is re-trained with its optimal parameters on the full training set. Selection criterion: highest R² on the held-out test set, subject to a train/test R² delta of ≤ 0.05. Every run is tracked via **MLflow**.
 
 **Output artifacts:**
 - `Artifacts/<timestamp>/model_trainer/trained_model/best_model.pkl`
-- `Artifacts/<timestamp>/model_trainer/model_evaluation/` — full suite of evaluation plots
-- `final_model/best_model.pkl` — stable production copy
-
-**Output artifact:** `ModelTrainerArtifact(trained_model_file_path, train_metric_artifact, test_metric_artifact)`
-
----
-
-### 8. Runtime Artifacts Generated
-
-Running `python scripts/run_training.py` produces two directory trees:
-
-**`Artifacts/` — per-run, timestamped:**
-```
-Artifacts/
-└── <timestamp>/
-    ├── data_ingestion/
-    │   ├── feature_store/RestaurantDataset.csv        (9,551 rows)
-    │   └── ingested/
-    │       ├── train.csv                               (7,640 rows)
-    │       └── test.csv                                (1,911 rows)
-    ├── data_validation/
-    │   ├── primary_validated/
-    │   │   ├── train.csv                               (7,640 rows × 21 cols)
-    │   │   └── test.csv                                (1,911 rows × 21 cols)
-    │   ├── drift_report/report.yaml                   ← KS test results per feature
-    │   └── final_validated/
-    │       ├── train.npy                               (7,632 × 12)
-    │       └── test.npy                                (1,910 × 12)
-    ├── data_transformation/
-    │   ├── transformed/
-    │   │   ├── train.csv                               (7,632 rows × 12 cols)
-    │   │   └── test.csv                                (1,910 rows × 12 cols)
-    │   └── transformed_object/
-    │       ├── preprocessing.pkl
-    │       ├── binary_mapping.yaml
-    │       ├── City_mapping.yaml
-    │       ├── Country Code_mapping.yaml
-    │       ├── Currency_mapping.yaml
-    │       └── cuisine_mapping.yaml
-    ├── model_trainer/
-    │   ├── trained_model/best_model.pkl
-    │   └── model_evaluation/
-    │       ├── all_model_performance_report.yaml       ← Full metric table
-    │       ├── model_comparison.png                    ← Side-by-side bar chart
-    │       ├── GradientBoost_Regressor_actual_vs_pred.png
-    │       ├── GradientBoost_Regressor_residuals.png
-    │       ├── GradientBoost_Regressor_feature_importance.png
-    │       ├── Random_Forest_Regressor_actual_vs_pred.png
-    │       ├── Random_Forest_Regressor_residuals.png
-    │       ├── Random_Forest_Regressor_feature_importance.png
-    │       ├── XGBoost_Regressor_actual_vs_pred.png
-    │       ├── XGBoost_Regressor_residuals.png
-    │       └── XGBoost_Regressor_feature_importance.png
-    └── predicted_data/output.csv                      ← Batch prediction results
-```
-
-**`final_model/` — stable production artifacts (overwritten each run):**
-```
-final_model/
-├── best_model.pkl              # Serialized best model (GradientBoost, this run)
-├── preprocessor.pkl            # Fitted RobustScaler ColumnTransformer
-├── binary_mapping.yaml         # Yes/No → 1/0 encoding map
-├── City_mapping.yaml           # City name → mean rating
-├── Country Code_mapping.yaml   # Country → mean rating
-├── Currency_mapping.yaml       # Currency → mean rating
-└── cuisine_mapping.yaml        # Cuisine name → mean rating
-```
-
-The app (`backend.py`) reads directly from `final_model/` at inference — no access to `Artifacts/` is required for serving predictions.
+- `Artifacts/<timestamp>/model_trainer/model_evaluation/` — full evaluation plots
+- `final_model/best_model.pkl` — stable production copy, read by `backend.py` at inference
 
 ---
 
@@ -565,12 +440,6 @@ India (Country Code 1) accounts for ~89% of all restaurants. `Is delivering now`
 
 `Price range` (r=0.44) and the engineered `Cuisine_avg_rating` (r=0.42) are the two strongest predictors. City-level target encoding ranks third at r=0.41.
 
-**Location vs Rating:**
-
-![Location vs Rating](Notebooks/reports/location_vs_rating.png)
-
-London tops city-level ratings at 4.54, followed by Tampa Bay (4.41) and Bangalore (4.38).
-
 ---
 
 ## ⚙️ Feature Engineering
@@ -590,15 +459,9 @@ London tops city-level ratings at 4.54, followed by Tampa Bay (4.41) and Bangalo
 
 ## 📉 Model Evaluation
 
-All plots below are auto-generated by `run_training.py` and saved to `Artifacts/<timestamp>/model_trainer/model_evaluation/`.
-
 ### Model Comparison
 
 ![Model Comparison](static_for_readme/model_comparison.png)
-
-Side-by-side comparison of R², MAE, and RMSE across all three ensemble models on both train and test splits.
-
-**Full metrics from run `Artifacts/<timestamp>/model_trainer/model_evaluation/`** (`all_model_performance_report.yaml`):
 
 | Model | Train R² | Test R² | Δ R² | Train MAE | Test MAE | Train RMSE | Test RMSE |
 |---|---|---|---|---|---|---|---|
@@ -606,13 +469,11 @@ Side-by-side comparison of R², MAE, and RMSE across all three ensemble models o
 | Random Forest | 0.9936 | 0.9591 | 0.0345 | 0.0765 | 0.1985 | 0.1213 | 0.3058 |
 | XGBoost | 0.9833 | 0.9565 | 0.0268 | 0.1259 | 0.2082 | 0.1958 | 0.3153 |
 
-> **Why Gradient Boosting was selected:** It achieved the best test R² (0.9604) with a near-zero train/test gap (Δ=0.0019) — the smallest of all three models and well inside the 0.05 overfitting threshold. Random Forest had a higher train R² (0.9936) but a wider gap (Δ=0.0345), indicating mild overfitting. XGBoost was slightly behind on both test R² and gap metrics.
+> **Why Gradient Boosting was selected:** It achieved the best test R² (0.9604) with a near-zero train/test gap (Δ=0.0019) — the smallest of all three models and well inside the 0.05 overfitting threshold. Random Forest had a higher train R² (0.9936) but a wider gap (Δ=0.0345), indicating mild overfitting.
 
 ---
 
 ### Actual vs Predicted
-
-Scatter plots of predicted vs. actual ratings. Points hugging the diagonal (y=x) indicate accurate, unbiased predictions across the full rating range.
 
 | Gradient Boosting | Random Forest | XGBoost |
 |---|---|---|
@@ -624,25 +485,37 @@ All three models show strong alignment across the rating range. Gradient Boostin
 
 ### Residual Plots
 
-Residual plots show the error distribution across the prediction range. Ideal residuals are randomly scattered around zero with no visible pattern — any cone shape (heteroscedasticity) or curve (systematic bias) would indicate a model weakness.
-
 | Gradient Boosting | Random Forest | XGBoost |
 |---|---|---|
 | ![GB Residuals](static_for_readme/GradientBoost_Regressor_residuals.png) | ![RF Residuals](static_for_readme/Random_Forest_Regressor_residuals.png) | ![XGB Residuals](static_for_readme/XGBoost_Regressor_residuals.png) |
 
-All three models show residuals tightly centered around zero with symmetric spread and no visible pattern, confirming no systematic bias across the prediction range.
+Residuals are tightly centered around zero with symmetric spread and no visible pattern, confirming no systematic bias across the prediction range.
 
 ---
 
 ### Feature Importance
 
-Feature importance charts reveal which engineered and raw features contribute most to each model's predictions.
-
 | Gradient Boosting | Random Forest | XGBoost |
 |---|---|---|
 | ![GB Importance](static_for_readme/GradientBoost_Regressor_feature_importance.png) | ![RF Importance](static_for_readme/Random_Forest_Regressor_feature_importance.png) | ![XGB Importance](static_for_readme/XGBoost_Regressor_feature_importance.png) |
 
-Across all three models, **`Cuisine_avg_rating`** and **`Price range`** consistently emerge as the top two contributors — directly validating the EDA finding that cuisine quality tier and price tier are the dominant drivers of restaurant ratings. The engineered `Cuisine_avg_rating` feature (built entirely from target encoding, not present in the raw data) topping the importance charts is a strong signal that the feature engineering strategy added genuine predictive value.
+Across all three models, **`Cuisine_avg_rating`** and **`Price range`** consistently emerge as the top two contributors — directly validating the EDA finding that cuisine quality tier and price tier are the dominant drivers of restaurant ratings.
+
+---
+
+## 💡 Key Findings & Implications
+
+**`Cuisine_avg_rating` is the top feature across all three models** — built entirely from target encoding, not present in the raw data. This confirms that thoughtful feature engineering delivered more predictive signal than any raw column. For practitioners: when extending this pipeline to a new regional dataset, investing in cuisine-level and city-level encoding is more valuable than collecting additional raw features.
+
+**Price range is the strongest raw predictor** (r = 0.44), with the sharpest quality jump from Mid → Premium (+0.40 points). For new restaurant owners, this means the pricing tier decision at launch has a larger measurable impact on expected rating than cuisine choice alone — a counterintuitive but actionable result.
+
+**Gradient Boosting generalizes best with the tightest train/test gap** (Δ R²=0.0019 vs 0.0345 for Random Forest). For deployment contexts where the model will be retrained periodically on evolving data, this stability under the generalization threshold is more operationally valuable than a marginally higher training-set score.
+
+**All 12 features cleared the KS drift test**, confirming the current training data is statistically consistent with the historical baseline. This also validates that the drift gate is functional — a pipeline health check as much as a data quality check.
+
+**Cuisine quality and popularity are largely decoupled.** Brazilian cuisine leads on average rating (4.34) across ~20 restaurants; North Indian leads on vote volume (596K) across 3,960 restaurants. For aggregator product teams, this means surfacing "top rated" and "most popular" as distinct signals — and not assuming that high vote counts proxy for quality.
+
+**Table booking is a consistent quality signal** (+0.18 points on average). It acts as a proxy for overall establishment quality — not a direct driver of better ratings. Restaurants considering whether to add a reservation system can treat this as a lower-bound estimate of the associated rating uplift.
 
 ---
 
@@ -719,7 +592,7 @@ python scripts/push_data.py
 ### Step 3 — Run the Training Pipeline
 ```bash
 python scripts/run_training.py
-# Runs all 6 stages: Ingestion → Validation → Transform → Drift → Final Validation → Train
+# Runs all stages: Ingestion → Validation → Transform → Drift → Final Validation → Train
 # Saves final_model/ and a timestamped Artifacts/ directory with all evaluation plots
 ```
 
@@ -755,25 +628,9 @@ jupyter notebook Notebooks/EDA/
 
 ---
 
-## 💡 Key Findings
-
-- **Price range is the strongest raw predictor** (r = 0.44). A clear monotonic relationship exists across all four tiers, with the sharpest quality jump from Mid → Premium (+0.40 points).
-
-- **The engineered `Cuisine_avg_rating` feature tops the feature importance charts across all three models** — built entirely from target encoding and not present in the raw data. This confirms that thoughtful feature engineering delivers more predictive signal than any raw column.
-
-- **Gradient Boosting generalizes best.** In the actual runtime run (`04_18_2026_12_30_57`), it achieved test R²=0.9604, MAE=0.199, and a train/test R² gap of just 0.0019 — the tightest of all three ensemble models, demonstrating strong generalization without overfitting.
-
-- **All 12 features cleared the KS drift test with p=1.0**, confirming that the current training data is statistically consistent with the historical baseline and the pipeline's quality gate is functioning correctly.
-
-- **Cuisine quality and popularity are largely decoupled.** Brazilian cuisine leads on average rating (4.34) across ~20 restaurants; North Indian leads on vote volume (596K) across 3,960 restaurants. Being popular does not mean being highly rated.
-
-- **Table booking is a consistent quality signal.** Restaurants accepting reservations average 0.18 points higher — acting as a proxy for overall establishment quality, not a direct driver of better ratings.
-
----
-
 <div align="center">
 
-  Built with 🐍Python 3.13 · ⚙️📊scikit-learn · 🌳⚡XGBoost · 🍃MongoDB Atlas · 📈🔁MLflow · 🔺Streamlit · 📓🟠Jupyter Notbook
+  Built with 🐍Python 3.13 · ⚙️📊scikit-learn · 🌳⚡XGBoost · 🍃MongoDB Atlas · 📈🔁MLflow · 🔺Streamlit · 📓🟠Jupyter Notebook
 
   *If this project helped you, consider giving it a ⭐ on GitHub!*
 </div>
