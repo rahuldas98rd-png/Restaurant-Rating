@@ -6,12 +6,9 @@ of your project, such as its metadata, dependencies and more.
 
 from setuptools import find_packages, setup
 from typing import List
-from dotenv import load_dotenv
-import os
 
-load_dotenv()
-author_name=os.getenv("AUTHOR_NAME")
-author_mail=os.getenv("AUTHOR_MAIL")
+author_name = "RAHUL DAS"
+author_mail = "pymail7789@gmail.com"
 
 def get_requirements() -> List[str]:
     """
