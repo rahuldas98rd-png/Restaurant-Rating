@@ -8,9 +8,18 @@ from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
 import certifi
 
+import streamlit as st
+
 load_dotenv()
-mongodb_url = os.getenv("MONGO_DB_URL")
-database = os.getenv("DATABSE")
+
+def _get_secret(key: str) -> str:
+    try:
+        return st.secrets[key]
+    except Exception:
+        return os.getenv(key)
+
+mongodb_url = _get_secret("MONGO_DB_URL")
+database    = _get_secret("DATABSE")
 ca = certifi.where()
 
 logging = get_logger(__name__)

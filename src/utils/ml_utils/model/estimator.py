@@ -57,7 +57,9 @@ class RatingPredictor:
             dataframe_copy['Cuisine'] = dataframe_copy['Cuisine'].replace(cuisine_mapping)
 
             if dataframe_copy['Cuisine'].dtypes=='object':
-                dataframe_copy=dataframe_copy[~((dataframe_copy['Cuisine']=='B�_rek') | (dataframe_copy['Cuisine']=='Bihari'))]
+                dataframe_copy=dataframe_copy[~((dataframe_copy['Cuisine']=='B�_rek') | 
+                                                (dataframe_copy['Cuisine']=='Bihari') | 
+                                                (dataframe_copy['Cuisine']=='Andhra'))]
 
             cuisine_rating = (
                         dataframe_copy.groupby("Restaurant ID")['Cuisine']

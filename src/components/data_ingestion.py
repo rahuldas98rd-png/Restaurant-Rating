@@ -16,8 +16,17 @@ from src.entity.artifact_entity import DataIngestionArtifact
 from src.utils.main_utils.utils import save_csv, read_yaml_file, fetch_data_from_database
 from src.constants.training_pipeline import SCHEMA_FILE_PATH
 
+import streamlit as st
+
 load_dotenv()
-mongodb_url = os.getenv("MONGO_DB_URL")
+
+def _get_secret(key: str) -> str:
+    try:
+        return st.secrets[key]
+    except Exception:
+        return os.getenv(key)
+
+mongodb_url = _get_secret("MONGO_DB_URL")
 
 ca = certifi.where()
 
