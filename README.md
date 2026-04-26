@@ -61,6 +61,8 @@ Training on the Zomato dataset produces a generalizable rating predictor that go
 |---|---|
 | ![App Preview 1](app/app_preview_1.png) | ![App Preview 2](app/app_preview_2.png) |
 
+## App Link: https://restaurant-rating-swqjgbe7jzxpsecjdtp4v3.streamlit.app/
+
 ---
 
 ## 📊 Dataset
